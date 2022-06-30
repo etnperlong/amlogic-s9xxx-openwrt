@@ -8,24 +8,40 @@
 
 # ------------------------------- Main source started -------------------------------
 #
-# Modify default theme（FROM uci-theme-bootstrap CHANGE TO luci-theme-material）
-sed -i 's/luci-theme-bootstrap/luci-theme-material/g' ./feeds/luci/collections/luci/Makefile
+# Modify default theme（FROM uci-theme-bootstrap CHANGE TO luci-theme-argon）
+sed -i 's/luci-theme-bootstrap/luci-theme-argonne/g' ./feeds/luci/collections/luci/Makefile
+
+# Upgrade smartdns
+# sed -i 's/PKG_VERSION:=.*/PKG_VERSION:=8.2021.35/' feeds/packages/net/smartdns/Makefile
+# sed -i 's/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=f50e4dd0813da9300580f7188e44ed72a27ae79c/' feeds/packages/net/smartdns/Makefile
+# sed -i 's/PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=84c37415bc3716893fd0db7e7525b21a9b03f478a1d6ba9b78ae1e4e8a1d077b/' feeds/packages/net/smartdns/Makefile
 
 # Add autocore support for armvirt
 sed -i 's/TARGET_rockchip/TARGET_rockchip\|\|TARGET_armvirt/g' package/lean/autocore/Makefile
+
+# Compatibility for cpufreq
+sed -i 's/LUCI_DEPENDS.*/LUCI_DEPENDS:=\@\(arm\|\|aarch64\)/g' package/lean/luci-app-cpufreq/Makefile
+sed -i 's/services/system/g' package/lean/luci-app-cpufreq/luasrc/controller/cpufreq.lua
 
 # Set etc/openwrt_release
 sed -i "s|DISTRIB_REVISION='.*'|DISTRIB_REVISION='R$(date +%Y.%m.%d)'|g" package/lean/default-settings/files/zzz-default-settings
 echo "DISTRIB_SOURCECODE='lede'" >>package/base-files/files/etc/openwrt_release
 
-# Modify default IP（FROM 192.168.1.1 CHANGE TO 192.168.31.4）
-# sed -i 's/192.168.1.1/192.168.31.4/g' package/base-files/files/bin/config_generate
+# Modify default IP（FROM 192.168.1.1 CHANGE TO 192.168.21.1）
+sed -i 's/192.168.1.1/192.168.21.1/g' package/base-files/files/bin/config_generate
+sed -i 's#192.168.1.1#192.168.21.1#g' package/base-files/files/bin/config_generate
 
 # Modify default root's password（FROM 'password'[$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.] CHANGE TO 'your password'）
 # sed -i 's/root::0:0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
 
+# Add Shadowsocks Rust
+git clone https://github.com/honwen/luci-app-shadowsocks-rust.git package/luci-app-shadowsocks-rust
+pushd package/luci-app-shadowsocks-rust/tools/po2lmo
+make && make install
+popd
+
 # Replace the default software source
-# sed -i 's#openwrt.proxy.ustclug.org#mirrors.bfsu.edu.cn\\/openwrt#' package/lean/default-settings/files/zzz-default-settings
+sed -i 's#mirrors.cloud.tencent.com/lede#downloads.openwrt.org#g' package/lean/default-settings/files/zzz-default-settings
 #
 # ------------------------------- Main source ends -------------------------------
 
@@ -54,3 +70,5 @@ svn co https://github.com/ophub/luci-app-amlogic/trunk/luci-app-amlogic package/
 #
 # ------------------------------- Other ends -------------------------------
 
+# Install again
+./scripts/feeds install -a

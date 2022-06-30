@@ -13,7 +13,7 @@ on:
       openwrt_soc:
         description: "Select Amlogic SoC"
         required: false
-        default: "all"
+        default: "s905d"
         type: choice
         options:
           - all
@@ -56,15 +56,21 @@ on:
         description: "Set the rootfs size(Unit: MiB)."
         required: false
         default: "960"
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+  #schedule:
+  #- cron: '0 17 * * 0'
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
   FEEDS_CONF: router-config/lede-master/feeds.conf.default
-  CONFIG_FILE: router-config/lede-master/.config
+  CONFIG_FILE: router-config/lede-master/my.config
   DIY_P1_SH: router-config/lede-master/diy-part1.sh
   DIY_P2_SH: router-config/lede-master/diy-part2.sh
-  TZ: America/New_York
+  TZ: Europe/London
 
 jobs:
   build:
@@ -93,9 +99,14 @@ jobs:
       - name: Clone source code
         working-directory: /workdir
         run: |
-          df -hT ${PWD}
-          git clone --depth 1 ${REPO_URL} -b ${REPO_BRANCH} openwrt
-          ln -sf /workdir/openwrt ${GITHUB_WORKSPACE}/openwrt
+          df -hT $PWD
+          git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+          ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+          cd openwrt
+          useVersionInfo=$(git show -s --date=short --format="Upstream: %an<br/>Date: %cd<br/>Last commit: %s<br/>Hash: %H")
+          echo "useVersionInfo=$useVersionInfo" >> $GITHUB_ENV
+          echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
+          echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
 
       - name: Load custom feeds
         run: |
@@ -126,6 +137,13 @@ jobs:
           make download -j8
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
+      
+      - name: SSH connection to Actions @ Ctrl+C to enter, Ctrl+D to exit
+        uses: P3TERX/ssh2actions@main
+        if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
       - name: Compile the firmware
         id: compile
@@ -154,9 +172,11 @@ jobs:
           allowUpdates: true
           token: ${{ secrets.GH_TOKEN }}
           body: |
-            This is OpenWrt firmware for Amlogic s9xxx tv box
+            This is OpenWrt firmware for Amlogic S9xxx STB
+            * Build Information
+            ${{ env.useVersionInfo }}
             * Firmware information
-            Default IP: 192.168.1.1
+            Default IP: 192.168.21.1
             Default username: root
             Default password: password
             Default WIFI name: OpenWrt
