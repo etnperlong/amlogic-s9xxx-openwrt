@@ -131,6 +131,13 @@ jobs:
           echo "useVersionInfo=$useVersionInfo" >> $GITHUB_ENV
           echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
           echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
+
+      - name: Use build cache
+        uses: klever1988/cachewrtbuild@main
+        with:
+          ccache: 'true'
+          prefix: ${{ github.workspace }}/openwrt
+
       - name: Load custom feeds
         run: |
           [[ -e "${FEEDS_CONF}" ]] && cp -f ${FEEDS_CONF} openwrt/feeds.conf.default
