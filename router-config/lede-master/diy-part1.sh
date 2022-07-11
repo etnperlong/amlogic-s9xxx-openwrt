@@ -21,4 +21,4 @@ sed -i '$a src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git' feed
 sed -i '$a src-git kenzok8small https://github.com/xiaorouji/openwrt-passwall.git' feeds.conf.default
 sed -i '$a src-git ethernfq https://github.com/mister-benjamin/etherwake-nfqueue-openwrt.git' feeds.conf.default
 sed -i '$a src-git darkmatter https://github.com/apollo-ng/luci-theme-darkmatter.git' feeds.conf.default
-sed -i '$a src-git netmaker http://github.com/etnperlong/netmaker-openwrt.git;bump-version' feeds.conf.default
+# sed -i '$a src-git netmaker http://github.com/etnperlong/netmaker-openwrt.git;bump-version' feeds.conf.default
