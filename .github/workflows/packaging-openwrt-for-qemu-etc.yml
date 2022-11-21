@@ -21,18 +21,22 @@ on:
       openwrt_soc:
         description: "Select device SoC"
         required: false
-        default: "qemu_vplus_beikeyun_l1pro_r66s_r68s_h68k_e25"
+        default: "qemu_vplus_beikeyun_l1pro_rock5b_h66k_h68k_h88k_r66s_r68s_e25"
         type: choice
         options:
           - all
-          - qemu_vplus_beikeyun_l1pro_r66s_r68s_h68k_e25
+          - qemu_vplus_beikeyun_l1pro_rock5b_h66k_h68k_h88k_r66s_r68s_e25
           - s922x_s922x-n2_s905x3_s905x2_s912_s905d_s905
           - qemu
           - vplus
           - beikeyun
           - l1pro
-          - r68s
+          - rock5b
+          - h66k
           - h68k
+          - h88k
+          - r66s
+          - r68s
           - e25
           - s922x
           - s922x-n2
@@ -79,7 +83,9 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null
+          docker rmi `docker images -q`
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d /usr/local/lib/android 2>/dev/null
+          sudo -E apt-get -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* adoptopenjdk* mysql* php* mongodb* dotnet* moby* snapd* || true
           sudo -E apt-get -qq update
           sudo -E apt-get -qq install $(curl -fsSL https://is.gd/depend_ubuntu2204_openwrt)
           sudo -E apt-get -qq autoremove --purge
@@ -91,7 +97,7 @@ jobs:
         id: down
         if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
         run: |
-          openwrt_url="$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | grep -o "OpenWrt_.*${{ github.event.inputs.branch }}.*/.*rootfs.tar.gz" | head -n 1)"
+          openwrt_url="$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | grep -o "OpenWrt_.*${{ inputs.branch }}.*/.*rootfs.tar.gz" | head -n 1)"
           [[ -z "${openwrt_url}" ]] && echo -e "OpenWrt file not found!" && exit 1
           #
           armvirt_tarfile_path="openwrt/bin/targets/armvirt/64"
@@ -106,10 +112,11 @@ jobs:
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         env:
           OPENWRT_ARMVIRT: openwrt/bin/targets/*/*/*rootfs.tar.gz
-          KERNEL_REPO_URL: https://github.com/ophub/kernel/tree/main/pub/stable
-          PACKAGE_SOC: ${{ github.event.inputs.openwrt_soc }}
-          KERNEL_VERSION_NAME: ${{ github.event.inputs.openwrt_kernel }}
-          KERNEL_AUTO_LATEST: ${{ github.event.inputs.auto_kernel }}
+          KERNEL_REPO_URL: https://github.com/ophub/kernel/tree/main/pub
+          KERNEL_VERSION_DIR: stable_rk3588
+          PACKAGE_SOC: ${{ inputs.openwrt_soc }}
+          KERNEL_VERSION_NAME: ${{ inputs.openwrt_kernel }}
+          KERNEL_AUTO_LATEST: ${{ inputs.auto_kernel }}
 
       - name: Upload OpenWrt Firmware to Release
         uses: ncipollo/release-action@main

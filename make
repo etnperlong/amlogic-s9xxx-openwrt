@@ -24,6 +24,7 @@
 # init_var           : Initialize all variables
 # find_openwrt       : Find OpenWrt file (openwrt-armvirt/*rootfs.tar.gz)
 # download_depends   : Download the dependency files
+# query_version      : Query the latest kernel version
 # download_kernel    : Download the latest kernel
 #
 # confirm_version    : Confirm version type
@@ -48,6 +49,7 @@ armbian_path="${amlogic_path}/amlogic-armbian"
 kernel_path="${amlogic_path}/amlogic-kernel"
 uboot_path="${amlogic_path}/amlogic-u-boot"
 configfiles_path="${amlogic_path}/common-files"
+amlogic_model_conf="${configfiles_path}/rootfs/etc/model_database.txt"
 bootfs_path="${configfiles_path}/bootfs"
 openvfd_path="${configfiles_path}/rootfs/usr/share/openvfd"
 # Add custom openwrt firmware information
@@ -58,17 +60,19 @@ depends_repo="https://github.com/ophub/amlogic-s9xxx-armbian/tree/main/build-arm
 script_repo="https://github.com/ophub/luci-app-amlogic/tree/main/luci-app-amlogic/root/usr/sbin"
 # Kernel files download repository
 kernel_repo="https://github.com/ophub/kernel/tree/main/pub"
+# Convert kernel library address to svn format
+kernel_repo="${kernel_repo//tree\/main/trunk}"
 version_branch="stable"
 auto_kernel="true"
 build_kernel=("5.10.125" "5.15.50")
-# Set supported SoC
+# Set supported board
 build_openwrt=(
     "a311d"
     "s922x" "s922x-n2" "s922x-reva"
     "s905x3" "s905x3-b"
     "s905x2" "s905x2-km3"
     "s912" "s912-m8s"
-    "s905d" "s905d-ki"
+    "s905d" "s905d-ki" "s905l2"
     "s905x"
     "s905w"
     "s905"
@@ -94,7 +98,7 @@ error_msg() {
 }
 
 process_msg() {
-    echo -e " [\033[1;92m ${soc} - ${kernel} \033[0m] ${1}"
+    echo -e " [\033[1;92m ${board} - ${kernel} \033[0m] ${1}"
 }
 
 get_textoffset() {
@@ -105,7 +109,7 @@ get_textoffset() {
 }
 
 init_var() {
-    cd ${make_path}
+    echo -e "${STEPS} Start Initializing Variables..."
 
     # If it is followed by [ : ], it means that the option requires a parameter value
     get_all_ver="$(getopt "db:k:a:v:s:" "${@}")"
@@ -119,7 +123,7 @@ init_var() {
             : ${version_branch:="${version_branch}"}
             : ${ROOT_MB:="${ROOT_MB}"}
             ;;
-        -b | --BuildSoC)
+        -b | --Board)
             if [[ -n "${2}" ]]; then
                 if [[ "${2}" != "all" ]]; then
                     unset build_openwrt
@@ -178,6 +182,7 @@ init_var() {
 
 find_openwrt() {
     cd ${make_path}
+    echo -e "${STEPS} Start searching for OpenWrt file..."
 
     # Find whether the openwrt file exists
     openwrt_file_name="$(ls ${openwrt_path}/${openwrt_rootfs_file} 2>/dev/null | head -n 1 | awk -F "/" '{print $NF}')"
@@ -204,7 +209,7 @@ find_openwrt() {
 
 download_depends() {
     cd ${make_path}
-    echo -e "${STEPS} Download all dependent files..."
+    echo -e "${STEPS} Start downloading dependency files..."
 
     # Convert depends library address to svn format
     if [[ "${depends_repo}" == http* && -n "$(echo ${depends_repo} | grep "tree/main")" ]]; then
@@ -247,22 +252,16 @@ download_depends() {
     chmod +x ${configfiles_path}/rootfs/usr/sbin/*
 }
 
-download_kernel() {
-    cd ${make_path}
-
-    # Convert kernel library address to svn format
-    if [[ "${kernel_repo}" == http* && -n "$(echo ${kernel_repo} | grep "tree/main")" ]]; then
-        kernel_repo="${kernel_repo//tree\/main/trunk}"
-    fi
-    kernel_repo="${kernel_repo}/${version_branch}"
-
-    # Set empty array
-    tmp_arr_kernels=()
+query_version() {
+    echo -e "${STEPS} Start querying the latest kernel version..."
 
     # Convert kernel library address to API format
     server_kernel_url="${kernel_repo#*com\/}"
     server_kernel_url="${server_kernel_url//trunk/contents}"
-    server_kernel_url="https://api.github.com/repos/${server_kernel_url}"
+    server_kernel_url="https://api.github.com/repos/${server_kernel_url}/${version_branch}"
+
+    # Set empty array
+    tmp_arr_kernels=()
 
     # Query the latest kernel in a loop
     i=1
@@ -271,7 +270,7 @@ download_kernel() {
         # Identify the kernel mainline
         MAIN_LINE="$(echo ${KERNEL_VAR} | awk -F '.' '{print $1"."$2}')"
         # Check the version on the server (e.g LATEST_VERSION="125")
-        LATEST_VERSION="$(curl -s "${server_kernel_url}" | grep "name" | grep -oE "${MAIN_LINE}.[0-9]+" | sed -e "s/${MAIN_LINE}.//g" | sort -n | sed -n '$p')"
+        LATEST_VERSION="$(curl -s "${server_kernel_url}" | grep "name" | grep -oE "${MAIN_LINE}\.[0-9]+" | sed -e "s/${MAIN_LINE}\.//g" | sort -n | sed -n '$p')"
         if [[ "${?}" -eq "0" && ! -z "${LATEST_VERSION}" ]]; then
             tmp_arr_kernels[${i}]="${MAIN_LINE}.${LATEST_VERSION}"
         else
@@ -285,131 +284,41 @@ download_kernel() {
     # Reset the kernel array to the latest kernel version
     unset build_kernel
     build_kernel="${tmp_arr_kernels[*]}"
+}
 
-    # Download kernel
+download_kernel() {
+    cd ${make_path}
+    echo -e "${STEPS} Start downloading the kernel files..."
+
     i=1
     for KERNEL_VAR in ${build_kernel[*]}; do
         if [[ ! -d "${kernel_path}/${KERNEL_VAR}" ]]; then
-            echo -e "${INFO} (${i}) [ ${KERNEL_VAR} ] Kernel loading from [ ${kernel_repo/trunk/tree\/main}/${KERNEL_VAR} ]"
-            svn export ${kernel_repo}/${KERNEL_VAR} ${kernel_path}/${KERNEL_VAR} --force
+            echo -e "${INFO} (${i}) [ ${KERNEL_VAR} ] Kernel loading from [ ${kernel_repo/trunk/tree\/main}/${version_branch}/${KERNEL_VAR} ]"
+            svn export ${kernel_repo}/${version_branch}/${KERNEL_VAR} ${kernel_path}/${KERNEL_VAR} --force
         else
             echo -e "${INFO} (${i}) [ ${KERNEL_VAR} ] Kernel is in the local directory."
         fi
 
         let i++
     done
-    sync
 }
 
 confirm_version() {
     process_msg " (1/6) Confirm version type."
     cd ${make_path}
 
-    # Confirm soc branch
-    case "${soc}" in
-    a311d | khadas-vim3)
-        FDTFILE="meson-g12b-a311d-khadas-vim3.dtb"
-        UBOOT_OVERLOAD="u-boot-gtkingpro.bin"
-        MAINLINE_UBOOT="khadas-vim3-u-boot.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s922x | belink | belinkpro | ugoos)
-        FDTFILE="meson-g12b-gtking-pro.dtb"
-        UBOOT_OVERLOAD="u-boot-gtkingpro.bin"
-        MAINLINE_UBOOT="gtkingpro-u-boot.bin.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s922x-n2 | odroid-n2)
-        FDTFILE="meson-g12b-odroid-n2.dtb"
-        UBOOT_OVERLOAD="u-boot-gtkingpro.bin"
-        MAINLINE_UBOOT="odroid-n2-u-boot.bin.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s922x-reva)
-        FDTFILE="meson-g12b-gtking-pro.dtb"
-        UBOOT_OVERLOAD="u-boot-gtkingpro-rev-a.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905x3 | tx3 | x96 | hk1 | h96 | ugoosx3)
-        FDTFILE="meson-sm1-x96-max-plus-100m.dtb"
-        UBOOT_OVERLOAD="u-boot-x96maxplus.bin"
-        MAINLINE_UBOOT="x96maxplus-u-boot.bin.sd.bin"
-        ANDROID_UBOOT="hk1box-bootloader.img"
-        ;;
-    s905x3-b | ta3pro)
-        FDTFILE="meson-sm1-skyworth-lb2004-a4091.dtb"
-        UBOOT_OVERLOAD="u-boot-skyworth-lb2004.bin"
-        MAINLINE_UBOOT="skyworth-lb2004-u-boot.bin.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s905x2 | x96max4g | x96max2g)
-        FDTFILE="meson-g12a-x96-max.dtb"
-        UBOOT_OVERLOAD="u-boot-x96max.bin"
-        MAINLINE_UBOOT="x96max-u-boot.bin.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s905x2-km3)
-        FDTFILE="meson-g12a-sei510.dtb"
-        UBOOT_OVERLOAD="u-boot-x96max.bin"
-        MAINLINE_UBOOT="x96max-u-boot.bin.sd.bin"
-        ANDROID_UBOOT=""
-        ;;
-    s912 | h96proplus | octopus)
-        FDTFILE="meson-gxm-octopus-planet.dtb"
-        UBOOT_OVERLOAD="u-boot-zyxq.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s912-m8s | s912-m8s-pro-l)
-        FDTFILE="meson-gxm-q201.dtb"
-        UBOOT_OVERLOAD="u-boot-s905x-s912.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905d | n1)
-        FDTFILE="meson-gxl-s905d-phicomm-n1.dtb"
-        UBOOT_OVERLOAD="u-boot-n1.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT="u-boot-2015-phicomm-n1.bin"
-        ;;
-    s905d-ki)
-        FDTFILE="meson-gxl-s905d-mecool-ki-pro.dtb"
-        UBOOT_OVERLOAD="u-boot-p201.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905x | hg680p | tbee | b860h)
-        FDTFILE="meson-gxl-s905x-p212.dtb"
-        UBOOT_OVERLOAD="u-boot-p212.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905w | x96mini | tx3mini)
-        FDTFILE="meson-gxl-s905w-tx3-mini.dtb"
-        UBOOT_OVERLOAD="u-boot-s905x-s912.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905 | beelinkminimx | mxqpro+)
-        FDTFILE="meson-gxbb-beelink-mini-mx.dtb"
-        #FDTFILE="meson-gxbb-mxq-pro-plus.dtb"
-        #FDTFILE="meson-gxbb-vega-s95-telos.dtb"
-        UBOOT_OVERLOAD="u-boot-s905.bin"
-        #UBOOT_OVERLOAD="u-boot-p201.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    s905l3a | e900v22c | e900v22d)
-        FDTFILE="meson-g12a-s905l3a-e900v22c.dtb"
-        UBOOT_OVERLOAD="u-boot-e900v22c.bin"
-        MAINLINE_UBOOT=""
-        ANDROID_UBOOT=""
-        ;;
-    *)
-        error_msg "Have no this soc: [ ${soc} ]"
-        ;;
-    esac
+    # Find [ the first ] configuration information with [ the same BOARD name ] and [ BUILD as yes ] in the ${amlogic_model_conf} file.
+    [[ -f "${amlogic_model_conf}" ]] || error_msg "[ ${amlogic_model_conf} ] file is missing!"
+    board_conf="$(cat ${amlogic_model_conf} | sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' | grep -E "^[^#].*:${board}:yes$" | head -n 1)"
+    [[ -n "${board_conf}" ]] || error_msg "[ ${board} ] config is missing!"
+
+    # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.ANDROID_UBOOT  8.DESCRIPTION  9.FAMILY  10.BOARD  11.BUILD
+    SOC="$(echo ${board_conf} | awk -F':' '{print $3}')"
+    FDTFILE="$(echo ${board_conf} | awk -F':' '{print $4}')"
+    UBOOT_OVERLOAD="$(echo ${board_conf} | awk -F':' '{print $5}')"
+    MAINLINE_UBOOT="$(echo ${board_conf} | awk -F':' '{print $6}')" && MAINLINE_UBOOT="${MAINLINE_UBOOT##*/}"
+    ANDROID_UBOOT="$(echo ${board_conf} | awk -F':' '{print $7}')" && ANDROID_UBOOT="${ANDROID_UBOOT##*/}"
+    FAMILY="$(echo ${board_conf} | awk -F':' '{print $9}')"
 
     # Confirm UUID
     ROOTFS_UUID="$(cat /proc/sys/kernel/random/uuid)"
@@ -422,7 +331,7 @@ make_image() {
     cd ${make_path}
 
     # Set openwrt filename
-    build_image_file="${out_path}/openwrt${source_codename}_${soc}_k${kernel}_$(date +"%Y.%m.%d").img"
+    build_image_file="${out_path}/openwrt${source_codename}_${board}_k${kernel}_$(date +"%Y.%m.%d").img"
     rm -f ${build_image_file} 2>/dev/null
 
     [[ -d "${out_path}" ]] || mkdir -p ${out_path}
@@ -441,18 +350,18 @@ make_image() {
     [[ -n "${loop_new}" ]] || error_msg "losetup ${build_image_file} failed."
 
     # Format openwrt image file
-    mkfs.vfat -n "BOOT" ${loop_new}p1 >/dev/null 2>&1
+    mkfs.vfat -F 32 -n "BOOT" ${loop_new}p1 >/dev/null 2>&1
     mkfs.btrfs -f -U ${ROOTFS_UUID} -L "ROOTFS" -m single ${loop_new}p2 >/dev/null 2>&1
 
     # Write the specified bootloader
     if [[ -n "${MAINLINE_UBOOT}" && -f "${uboot_path}/bootloader/${MAINLINE_UBOOT}" ]]; then
         dd if="${uboot_path}/bootloader/${MAINLINE_UBOOT}" of="${loop_new}" bs=1 count=444 conv=fsync 2>/dev/null
         dd if="${uboot_path}/bootloader/${MAINLINE_UBOOT}" of="${loop_new}" bs=512 skip=1 seek=1 conv=fsync 2>/dev/null
-        #echo -e "${INFO} ${soc}_v${kernel} write Mainline bootloader: ${MAINLINE_UBOOT}"
+        #echo -e "${INFO} ${board}_v${kernel} write Mainline bootloader: ${MAINLINE_UBOOT}"
     elif [[ -n "${ANDROID_UBOOT}" && -f "${uboot_path}/bootloader/${ANDROID_UBOOT}" ]]; then
         dd if="${uboot_path}/bootloader/${ANDROID_UBOOT}" of="${loop_new}" bs=1 count=444 conv=fsync 2>/dev/null
         dd if="${uboot_path}/bootloader/${ANDROID_UBOOT}" of="${loop_new}" bs=512 skip=1 seek=1 conv=fsync 2>/dev/null
-        #echo -e "${INFO} ${soc}_v${kernel} write Android bootloader: ${ANDROID_UBOOT}"
+        #echo -e "${INFO} ${board}_v${kernel} write Android bootloader: ${ANDROID_UBOOT}"
     fi
 }
 
@@ -461,8 +370,8 @@ extract_openwrt() {
     cd ${make_path}
 
     # Create openwrt mirror partition
-    tag_bootfs="${tmp_path}/${kernel}/${soc}/bootfs"
-    tag_rootfs="${tmp_path}/${kernel}/${soc}/rootfs"
+    tag_bootfs="${tmp_path}/${kernel}/${board}/bootfs"
+    tag_rootfs="${tmp_path}/${kernel}/${board}/rootfs"
     mkdir -p ${tag_bootfs} ${tag_rootfs}
 
     # Mount the openwrt image
@@ -628,12 +537,14 @@ EOF
 
     # Add firmware information
     echo "PLATFORM='amlogic'" >>${op_release} 2>/dev/null
+    echo "SOC='${SOC}'" >>${op_release} 2>/dev/null
     echo "FDTFILE='${FDTFILE}'" >>${op_release} 2>/dev/null
     echo "UBOOT_OVERLOAD='${UBOOT_OVERLOAD}'" >>${op_release} 2>/dev/null
     echo "MAINLINE_UBOOT='/lib/u-boot/${MAINLINE_UBOOT}'" >>${op_release} 2>/dev/null
     echo "ANDROID_UBOOT='/lib/u-boot/${ANDROID_UBOOT}'" >>${op_release} 2>/dev/null
+    echo "FAMILY='${FAMILY}'" >>${op_release} 2>/dev/null
+    echo "BOARD='${board}'" >>${op_release} 2>/dev/null
     echo "KERNEL_VERSION='${kernel}'" >>${op_release} 2>/dev/null
-    echo "SOC='${soc}'" >>${op_release} 2>/dev/null
     echo "K510='${K510}'" >>${op_release} 2>/dev/null
 
     # Add firmware version information to the terminal page
@@ -642,7 +553,7 @@ EOF
         op_production_date=$(date +%Y-%m-%d)
         echo " Install OpenWrt: System → Amlogic Service → Install OpenWrt" >>etc/banner
         echo " Update  OpenWrt: System → Amlogic Service → Online  Update" >>etc/banner
-        echo " Amlogic Box SoC: ${soc} | OpenWrt Kernel: ${op_version}" >>etc/banner
+        echo " Amlogic Box SoC: ${SOC} | OpenWrt Kernel: ${op_version}" >>etc/banner
         echo " Production Date: ${op_production_date}" >>etc/banner
         echo "───────────────────────────────────────────────────────────────────────" >>etc/banner
     fi
@@ -702,7 +613,7 @@ EOF
         cp -f ${UBOOT_OVERLOAD} u-boot.ext
         chmod +x u-boot.ext
     elif [[ "${K510}" -eq "1" ]] && [[ -z "${UBOOT_OVERLOAD}" || ! -f "${UBOOT_OVERLOAD}" ]]; then
-        error_msg "${soc} SoC does not support using ${kernel} kernel, missing u-boot."
+        error_msg "${board} Board does not support using ${kernel} kernel, missing u-boot."
     fi
 
     cd ${make_path}
@@ -743,6 +654,7 @@ clean_tmp() {
 
 loop_make() {
     cd ${make_path}
+    echo -e "${STEPS} Start making OpenWrt firmware..."
 
     j="1"
     for b in ${build_openwrt[*]}; do
@@ -754,14 +666,14 @@ loop_make() {
 
                 now_remaining_space="$(df -Tk ${make_path} | grep '/dev/' | awk '{print $5}' | echo $(($(xargs) / 1024 / 1024)))"
                 if [[ "${now_remaining_space}" -le "3" ]]; then
-                    echo "Remaining space is less than 3G, exit this making. \n"
+                    echo "Remaining space is less than 3G, exit this making."
                     break
                 else
                     echo "Remaining space is ${now_remaining_space}G."
                 fi
 
                 # The loop variable assignment
-                soc="${b}"
+                board="${b}"
                 kernel="${k}"
 
                 # Execute the following functions in sequence
@@ -790,7 +702,7 @@ loop_make() {
 }
 
 # Show welcome message
-echo -e "${INFO} Welcome to tools for making Amlogic s9xxx OpenWrt! \n"
+echo -e "${STEPS} Welcome to tools for making Amlogic s9xxx OpenWrt! \n"
 [[ "$(id -u)" == "0" ]] || error_msg "please run this script as root: [ sudo ./${0} ]"
 # Show server start information
 echo -e "${INFO} Server CPU configuration information: \n$(cat /proc/cpuinfo | grep name | cut -f2 -d: | uniq -c) \n"
@@ -805,13 +717,15 @@ find_openwrt
 # Download the dependency files
 download_depends
 # Download the latest kernel
-[[ "${auto_kernel}" == "true" ]] && download_kernel
-echo -e "${INFO} OpenWrt SoC List: [ $(echo ${build_openwrt[*]} | tr "\n" " ") ]"
+[[ "${auto_kernel}" == "true" ]] && query_version
+download_kernel
+echo -e "${INFO} OpenWrt Board List: [ $(echo ${build_openwrt[*]} | tr "\n" " ") ]"
 echo -e "${INFO} Kernel List: [ $(echo ${build_kernel[*]} | tr "\n" " ") ] \n"
 # Loop to make OpenWrt firmware
 loop_make
 #
 # Show server end information
-echo -e "${INFO} Server space usage after compilation: \n$(df -hT ${make_path}) \n"
+echo -e "${STEPS} Server space usage after compilation: \n$(df -hT ${make_path}) \n"
+echo -e "${SUCCESS} All process completed successfully."
 # All process completed
 wait
