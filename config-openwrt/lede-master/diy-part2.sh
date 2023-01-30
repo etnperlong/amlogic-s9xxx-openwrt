@@ -34,12 +34,6 @@ sed -i 's#192.168.1.1#192.168.21.1#g' package/base-files/files/bin/config_genera
 # Modify default root's password（FROM 'password'[$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.] CHANGE TO 'your password'）
 # sed -i 's/root::0:0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
 
-# Add Shadowsocks Rust
-git clone https://github.com/honwen/luci-app-shadowsocks-rust.git package/luci-app-shadowsocks-rust
-pushd package/luci-app-shadowsocks-rust/tools/po2lmo
-make && make install
-popd
-
 # Replace the default software source
 #sed -i 's#mirrors.cloud.tencent.com/lede#downloads.openwrt.org#g' package/lean/default-settings/files/zzz-default-settings
 #
@@ -69,6 +63,3 @@ svn co https://github.com/ophub/luci-app-amlogic/trunk/luci-app-amlogic package/
 # git apply ../config-openwrt/patches/{0001*,0002*}.patch --directory=feeds/luci
 #
 # ------------------------------- Other ends -------------------------------
-
-# Install again
-./scripts/feeds install -a
