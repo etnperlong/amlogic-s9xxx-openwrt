@@ -61,6 +61,14 @@ on:
           - 5.10.1
           - 5.15.1
           - 6.1.1
+      kernel_repo:
+        description: "Set the kernel repository"
+        required: false
+        default: "breakings/OpenWrt"
+        type: choice
+        options:
+          - ophub/kernel
+          - breakings/OpenWrt
       auto_kernel:
         description: "Auto use the latest kernel"
         required: false
@@ -101,7 +109,12 @@ jobs:
         id: down
         if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
         run: |
-          openwrt_url="$(curl --header "authorization: Bearer ${{ secrets.GH_TOKEN }}" -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | grep -o "OpenWrt_.*${{ inputs.source_branch }}.*/.*rootfs.tar.gz" | head -n 1)"
+          openwrt_url="$(curl \
+                            --header "authorization: Bearer ${{ secrets.GH_TOKEN }}" \
+                            -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" |
+                            grep -o "OpenWrt_.*${{ inputs.source_branch }}.*/.*rootfs.tar.gz" |
+                            head -n 1
+                        )"
           [[ -z "${openwrt_url}" ]] && echo -e "OpenWrt file not found!" && exit 1
           #
           armvirt_tarfile_path="openwrt/bin/targets/armvirt/64"
@@ -111,12 +124,12 @@ jobs:
           [[ "${?}" -ne "0" ]] && echo -e "The armvirt file download failed!" && exit 1
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Packaging OpenWrt
+      - name: Packaging OpenWrt [ ${{ inputs.source_branch }} ]
         uses: ophub/flippy-openwrt-actions@main
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         env:
           OPENWRT_ARMVIRT: openwrt/bin/targets/*/*/*rootfs.tar.gz
-          KERNEL_REPO_URL: ophub/kernel
+          KERNEL_REPO_URL: ${{ inputs.kernel_repo }}
           PACKAGE_SOC: ${{ inputs.openwrt_soc }}
           KERNEL_VERSION_NAME: ${{ inputs.openwrt_kernel }}
           KERNEL_AUTO_LATEST: ${{ inputs.auto_kernel }}

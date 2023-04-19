@@ -23,9 +23,11 @@
 #
 # error_msg          : Output error message
 # process_msg        : Output process message
+# mount_again        : Mount the image file, fail again
 # get_textoffset     : Get kernel TEXT_OFFSET
 #
 # init_var           : Initialize all variables
+# check_data         : Check the validity of the data
 # find_openwrt       : Find OpenWrt file (openwrt-armvirt/*rootfs.tar.gz)
 # download_depends   : Download the dependency files
 # query_version      : Query the latest kernel version
@@ -68,25 +70,26 @@ op_release="etc/flippy-openwrt-release"
 
 # Dependency files download repository
 depends_repo="https://github.com/ophub/amlogic-s9xxx-armbian/tree/main/build-armbian"
-# Convert depends library address to svn format
+# Convert depends repository address to svn format
 depends_repo="${depends_repo//tree\/main/trunk}"
 
 # Firmware files download repository
 firmware_repo="https://github.com/ophub/firmware/tree/main/firmware"
-# Convert firmware library address to svn format
+# Convert firmware repository address to svn format
 firmware_repo="${firmware_repo//tree\/main/trunk}"
 
 # Install/Update script files download repository
 script_repo="https://github.com/ophub/luci-app-amlogic/tree/main/luci-app-amlogic/root/usr/sbin"
-# Convert script library address to svn format
+# Convert script repository address to svn format
 script_repo="${script_repo//tree\/main/trunk}"
 
 # Set the kernel download repository from github.com
-kernel_repo="ophub/kernel"
+kernel_repo="https://github.com/ophub/kernel"
+# Set the tags suffix of the stable kernel, such as kernel_stable, etc.
+kernel_usage="stable"
 # Set the list of kernels used by default
 stable_kernel=("6.1.1" "5.15.1")
 rk3588_kernel=("5.10.1")
-h6_kernel=("6.1.1")
 # Set to automatically use the latest kernel
 auto_kernel="true"
 
@@ -119,6 +122,37 @@ process_msg() {
     echo -e " [\033[1;92m ${board} - ${kernel} \033[0m] ${1}"
 }
 
+mount_again() {
+    # Check mount parameters
+    m_type="${1}"
+    m_dev="${2}"
+    m_target="${3}"
+    [[ -n "${m_type}" && -n "${m_dev}" && -n "${m_target}" ]] || {
+        error_msg "Mount parameter is missing: [ ${m_type}, ${m_dev}, ${m_target} ]"
+    }
+
+    i="1"
+    max_try="10"
+    while [[ "${i}" -le "${max_try}" ]]; do
+        # Mount according to the image partition format
+        if [[ "${m_type}" == "btrfs" ]]; then
+            mount -t ${m_type} -o discard,compress=zstd:6 ${m_dev} ${m_target}
+        else
+            mount -t ${m_type} -o discard ${m_dev} ${m_target}
+        fi
+
+        # Mount failed and continue trying
+        if [[ "${?}" -eq "0" ]]; then
+            break
+        else
+            sync && sleep 3
+            umount -f ${m_target} 2>/dev/null
+            i="$((i + 1))"
+        fi
+    done
+    [[ "${i}" -gt "${max_try}" ]] && error_msg "[ ${i} ] attempts to mount failed."
+}
+
 get_textoffset() {
     vmlinuz_name="${1}"
     need_overload="yes"
@@ -130,7 +164,7 @@ init_var() {
     echo -e "${STEPS} Start Initializing Variables..."
 
     # If it is followed by [ : ], it means that the option requires a parameter value
-    get_all_ver="$(getopt "b:k:a:r:s:g:" "${@}")"
+    get_all_ver="$(getopt "b:r:u:k:a:s:g:" "${@}")"
 
     while [[ -n "${1}" ]]; do
         case "${1}" in
@@ -140,6 +174,22 @@ init_var() {
                 shift
             else
                 error_msg "Invalid -b parameter [ ${2} ]!"
+            fi
+            ;;
+        -r | --kernelRepository)
+            if [[ -n "${2}" ]]; then
+                kernel_repo="${2}"
+                shift
+            else
+                error_msg "Invalid -r parameter [ ${2} ]!"
+            fi
+            ;;
+        -u | --kernelUsage)
+            if [[ -n "${2}" ]]; then
+                kernel_usage="${2//kernel_/}"
+                shift
+            else
+                error_msg "Invalid -u parameter [ ${2} ]!"
             fi
             ;;
         -k | --Kernel)
@@ -159,14 +209,6 @@ init_var() {
                 shift
             else
                 error_msg "Invalid -a parameter [ ${2} ]!"
-            fi
-            ;;
-        -r | --kernelRepository)
-            if [[ -n "${2}" ]]; then
-                kernel_repo="${2}"
-                shift
-            else
-                error_msg "Invalid -r parameter [ ${2} ]!"
             fi
             ;;
         -s | --Size)
@@ -191,12 +233,24 @@ init_var() {
         esac
         shift
     done
+}
 
-    # Get the list of devices built by default
+check_data() {
+    # Columns of ${model_conf}:
     # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.BOOTLOADER_IMG  8.DESCRIPTION
     # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.BOARD  14.BUILD
+    [[ -f "${model_conf}" ]] || error_msg "Missing model config file: [ ${model_conf} ]"
+
+    # Convert ${model_conf} to ${model_txt} for [ openwrt-install-amlogic ], Just the first 8 columns.
+    cat ${model_conf} |
+        sed -e 's/NULL/NA/g' -e 's/[ ][ ]*//g' |
+        grep -E "^[^#ar].*" |
+        awk -F':' '{if ($6 != "NA") $6 = "/lib/u-boot/"$6; if ($7 != "NA") $7 = "/lib/u-boot/"$7; NF = 8; print}' OFS=':' \
+            >${model_txt}
+
+    # Get a list of build devices
     if [[ "${make_board}" == "all" ]]; then
-        board_list=""
+        board_list=":(yes)"
         make_openwrt=($(
             cat ${model_conf} |
                 sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' |
@@ -204,31 +258,31 @@ init_var() {
                 sort | uniq | xargs
         ))
     else
-        board_list=":($(echo ${make_board} | sed -e 's/_/\|/g'))"
+        board_list=":($(echo ${make_board} | sed -e 's/_/\|/g')):(yes|no)"
         make_openwrt=($(echo ${make_board} | sed -e 's/_/ /g'))
     fi
     [[ "${#make_openwrt[*]}" -eq "0" ]] && error_msg "The board is missing, stop making."
 
-    # In KERNEL_TAGS, query the [ kernel tags ] and [ specific kernel ]
+    # Get a list of kernel
     kernel_from=($(
         cat ${model_conf} |
             sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' -e 's/\.y/\.1/g' |
-            grep -E "^[^#].*${board_list}:yes$" | awk -F':' '{print $9}' |
+            grep -E "^[^#].*${board_list}$" | awk -F':' '{print $9}' |
             sort | uniq | xargs
     ))
     [[ "${#kernel_from[*]}" -eq "0" ]] && error_msg "Missing [ KERNEL_TAGS ] settings, stop building."
 
-    # In KERNEL_TAGS, query the [ specified kernel ], Start with the [ number ], such as 5.15.y, 6.1.y, etc.
+    # The [ specified kernel ], Use the [ kernel version number ], such as 5.15.y, 6.1.y, etc. download from [ kernel_stable ].
     specify_kernel=($(echo ${kernel_from[*]} | sed -e 's/[ ][ ]*/\n/g' | grep -E "^[0-9]+" | sort | uniq | xargs))
 
-    # In KERNEL_TAGS, the [ kernel tags ], Start with the [ letter ], such as stable, rk3588, h6, etc.
-    kernel_dir=($(echo ${kernel_from[*]} | sed -e 's/[ ][ ]*/\n/g' | grep -E "^[a-z]" | sort | uniq | xargs))
-    # Add the specified kernel tags
-    [[ "${#specify_kernel[*]}" -ne "0" ]] && kernel_dir=(${kernel_dir[*]} "specify")
-    # Check the kernel tags
-    [[ "${#kernel_dir[*]}" -eq "0" ]] && error_msg "The [ kernel_dir ] is missing, stop building."
+    # The [ suffix ] of KERNEL_TAGS starts with a [ letter ], such as kernel_stable, kernel_rk3588, etc.
+    tags_list=($(echo ${kernel_from[*]} | sed -e 's/[ ][ ]*/\n/g' | grep -E "^[a-z]" | sort | uniq | xargs))
+    # Add the specified kernel to the list
+    [[ "${#specify_kernel[*]}" -ne "0" ]] && tags_list=(${tags_list[*]} "specify")
+    # Check the kernel list
+    [[ "${#tags_list[*]}" -eq "0" ]] && error_msg "The [ tags_list ] is missing, stop building."
 
-    # Convert kernel library address to api format
+    # Convert kernel repository address to api format
     [[ "${kernel_repo}" =~ ^https: ]] && kernel_repo="$(echo ${kernel_repo} | awk -F'/' '{print $4"/"$5}')"
     kernel_api="https://api.github.com/repos/${kernel_repo}"
 }
@@ -299,27 +353,24 @@ download_depends() {
     # Download install/update and other related files
     svn export ${script_repo} ${common_files}/usr/sbin --force
     chmod +x ${common_files}/usr/sbin/*
-    # Convert text format profiles for install script(openwrt-install-amlogic)
-    cat ${model_conf} | sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' | grep -E "^[^#].*" >${model_txt}
 }
 
 query_version() {
-    echo -e "${STEPS} Start querying the latest kernel version for [ $(echo ${kernel_dir[*]} | xargs) ]..."
+    echo -e "${STEPS} Start querying the latest kernel version..."
 
-    # Check the version on the kernel library
+    # Check the version on the kernel repository
     x="1"
-    for k in ${kernel_dir[*]}; do
+    for k in ${tags_list[*]}; do
         {
             # Select the corresponding kernel directory and list
-            kd="${k}"
             if [[ "${k}" == "rk3588" ]]; then
+                kd="${k}"
                 down_kernel_list=(${rk3588_kernel[*]})
-            elif [[ "${k}" == "h6" ]]; then
-                down_kernel_list=(${h6_kernel[*]})
             elif [[ "${k}" == "specify" ]]; then
-                kd="stable"
+                kd="${kernel_usage}"
                 down_kernel_list=(${specify_kernel[*]})
             else
+                kd="${kernel_usage}"
                 down_kernel_list=(${stable_kernel[*]})
             fi
 
@@ -327,7 +378,7 @@ query_version() {
             tmp_arr_kernels=()
             i=1
             for kernel_var in ${down_kernel_list[*]}; do
-                echo -e "${INFO} (${x}.${i}) Auto query the latest kernel version of the same series for [ ${k} - ${kernel_var} ]"
+                echo -e "${INFO} (${x}.${i}) Auto query the latest kernel version for [ ${kd} - ${kernel_var} ]"
 
                 # Identify the kernel <VERSION> and <PATCHLEVEL>, such as [ 6.1 ]
                 kernel_verpatch="$(echo ${kernel_var} | awk -F '.' '{print $1"."$2}')"
@@ -361,7 +412,7 @@ query_version() {
                     tmp_arr_kernels[${i}]="${kernel_var}"
                 fi
 
-                echo -e "${INFO} (${x}.${i}) [ ${k} - ${tmp_arr_kernels[$i]} ] is latest kernel (${query_api}). \n"
+                echo -e "${INFO} (${x}.${i}) [ ${kd} - ${tmp_arr_kernels[$i]} ] is latest kernel (${query_api}). \n"
 
                 let i++
             done
@@ -370,9 +421,6 @@ query_version() {
             if [[ "${k}" == "rk3588" ]]; then
                 unset rk3588_kernel
                 rk3588_kernel=(${tmp_arr_kernels[*]})
-            elif [[ "${k}" == "h6" ]]; then
-                unset h6_kernel
-                h6_kernel=(${tmp_arr_kernels[*]})
             elif [[ "${k}" == "specify" ]]; then
                 unset specify_kernel
                 specify_kernel=(${tmp_arr_kernels[*]})
@@ -404,21 +452,20 @@ check_kernel() {
 
 download_kernel() {
     cd ${current_path}
-    echo -e "${STEPS} Start downloading the kernel files for [ $(echo ${kernel_dir[*]} | xargs) ]..."
+    echo -e "${STEPS} Start downloading the kernel files..."
 
     x="1"
-    for k in ${kernel_dir[*]}; do
+    for k in ${tags_list[*]}; do
         {
             # Set the kernel download list
-            kd="${k}"
             if [[ "${k}" == "rk3588" ]]; then
+                kd="${k}"
                 down_kernel_list=(${rk3588_kernel[*]})
-            elif [[ "${k}" == "h6" ]]; then
-                down_kernel_list=(${h6_kernel[*]})
             elif [[ "${k}" == "specify" ]]; then
+                kd="${kernel_usage}"
                 down_kernel_list=(${specify_kernel[*]})
-                kd="stable"
             else
+                kd="${kernel_usage}"
                 down_kernel_list=(${stable_kernel[*]})
             fi
 
@@ -427,7 +474,7 @@ download_kernel() {
             for kernel_var in ${down_kernel_list[*]}; do
                 if [[ ! -d "${kernel_path}/${kd}/${kernel_var}" ]]; then
                     kernel_down_from="https://github.com/${kernel_repo}/releases/download/kernel_${kd}/${kernel_var}.tar.gz"
-                    echo -e "${INFO} (${x}.${i}) [ ${k} - ${kernel_var} ] Kernel download from [ ${kernel_down_from} ]"
+                    echo -e "${INFO} (${x}.${i}) [ ${kd} - ${kernel_var} ] Kernel download from [ ${kernel_down_from} ]"
 
                     mkdir -p ${kernel_path}/${kd}
                     wget "${kernel_down_from}" -q -P "${kernel_path}/${kd}"
@@ -436,7 +483,7 @@ download_kernel() {
                     tar -xf "${kernel_path}/${kd}/${kernel_var}.tar.gz" -C "${kernel_path}/${kd}"
                     [[ "${?}" -ne "0" ]] && error_msg "[ ${kernel_var} ] kernel decompression failed."
                 else
-                    echo -e "${INFO} (${x}.${i}) [ ${k} - ${kernel_var} ] Kernel is in the local directory."
+                    echo -e "${INFO} (${x}.${i}) [ ${kd} - ${kernel_var} ] Kernel is in the local directory."
                 fi
 
                 # If the kernel contains the sha256sums file, check the files integrity
@@ -457,23 +504,25 @@ download_kernel() {
 confirm_version() {
     cd ${current_path}
 
+    # Columns of ${model_conf}:
+    # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.BOOTLOADER_IMG  8.DESCRIPTION
+    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.BOARD  14.BUILD
+    # Column 5, called <UBOOT_OVERLOAD> in Amlogic, <TRUST_IMG> in Rockchip, Not used in Allwinner.
+
     # Find [ the first ] configuration information with [ the same BOARD name ] and [ BUILD as yes ] in the ${model_conf} file.
-    [[ -f "${model_conf}" ]] || error_msg "[ ${model_conf} ] file is missing!"
     board_conf="$(
         cat ${model_conf} |
             sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' |
-            grep -E "^[^#].*:${board}:yes$" |
+            grep -E "^[^#].*:${board}:(yes|no)$" |
             head -n 1
     )"
     [[ -n "${board_conf}" ]] || error_msg "[ ${board} ] config is missing!"
 
-    # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.BOOTLOADER_IMG  8.DESCRIPTION
-    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.BOARD  14.BUILD
-    # Column 5, called <UBOOT_OVERLOAD> in Amlogic, <TRUST_IMG> in Rockchip, Not used in Allwinner.
+    # Get device settings options
     SOC="$(echo ${board_conf} | awk -F':' '{print $3}')"
     FDTFILE="$(echo ${board_conf} | awk -F':' '{print $4}')"
     UBOOT_OVERLOAD="$(echo ${board_conf} | awk -F':' '{print $5}')"
-    TRUST_IMG="${UBOOT_OVERLOAD}"
+    TRUST_IMG="${UBOOT_OVERLOAD}" && TRUST_IMG="${TRUST_IMG##*/}"
     MAINLINE_UBOOT="$(echo ${board_conf} | awk -F':' '{print $6}')" && MAINLINE_UBOOT="${MAINLINE_UBOOT##*/}"
     BOOTLOADER_IMG="$(echo ${board_conf} | awk -F':' '{print $7}')" && BOOTLOADER_IMG="${BOOTLOADER_IMG##*/}"
     KERNEL_TAGS="$(echo ${board_conf} | awk -F':' '{print $9}')"
@@ -605,15 +654,13 @@ extract_openwrt() {
 
     # Mount bootfs
     if [[ "${bootfs_type}" == "fat32" ]]; then
-        mount -t vfat -o discard ${loop_new}p1 ${tag_bootfs}
+        mount_again vfat ${loop_new}p1 ${tag_bootfs}
     else
-        mount -t ext4 -o discard ${loop_new}p1 ${tag_bootfs}
+        mount_again ext4 ${loop_new}p1 ${tag_bootfs}
     fi
-    [[ "${?}" -eq "0" ]] || error_msg "mount ${loop_new}p1 failed!"
 
     # Mount rootfs
-    mount -t btrfs -o discard,compress=zstd:6 ${loop_new}p2 ${tag_rootfs}
-    [[ "${?}" -eq "0" ]] || error_msg "mount ${loop_new}p2 failed!"
+    mount_again btrfs ${loop_new}p2 ${tag_rootfs}
 
     # Create snapshot directory
     btrfs subvolume create ${tag_rootfs}/etc >/dev/null 2>&1
@@ -745,15 +792,6 @@ refactor_rootfs() {
     sed -i "s|LABEL=ROOTFS|UUID=${ROOTFS_UUID}|g" etc/fstab
     sed -i "s|option label 'ROOTFS'|option uuid '${ROOTFS_UUID}'|g" etc/config/fstab
 
-    # Edit Kernel download directory
-    [[ -f "etc/config/amlogic" ]] && {
-        if [[ "${KERNEL_TAGS}" == "rk3588" ]]; then
-            sed -i "s|pub\/stable|pub\/rk3588|g" etc/config/amlogic
-        elif [[ "${KERNEL_TAGS}" == "h6" ]]; then
-            sed -i "s|pub\/stable|pub\/h6|g" etc/config/amlogic
-        fi
-    }
-
     # Modify the default script to [ bash ] for [ cpustat ]
     [[ -x "bin/bash" ]] && {
         sed -i "s/\/bin\/ash/\/bin\/bash/" etc/passwd
@@ -882,6 +920,8 @@ EOF
         sed -e "s/macaddr=.*/macaddr=${random_macaddr}:06/" "brcmfmac43456-sdio.txt" >"brcmfmac43456-sdio.amlogic,sm1.txt"
         # x96max plus v5.1 (ip1001m phy) adopts am7256 (brcm4354)
         sed -e "s/macaddr=.*/macaddr=${random_macaddr}:07/" "brcmfmac4354-sdio.txt" >"brcmfmac4354-sdio.amlogic,sm1.txt"
+        # ct2000 s922x is brm4359
+        sed -i "s/macaddr=.*/macaddr=${random_macaddr}:08/" "brcmfmac4359-sdio.ali,ct2000.txt"
     )
 
     # Add firmware version information to the terminal page
@@ -905,10 +945,10 @@ EOF
     echo "PACKAGED_DATE='$(date +%Y-%m-%d)'" >>${op_release}
     echo "MAINLINE_UBOOT='/lib/u-boot/${MAINLINE_UBOOT}'" >>${op_release}
     echo "ANDROID_UBOOT='/lib/u-boot/${BOOTLOADER_IMG}'" >>${op_release}
-    if [[ "${PLATFORM}" == "amlogic" ]]; then
+    if [[ "${PLATFORM}" == "rockchip" ]]; then
+        echo "TRUST_IMG='/lib/u-boot/${TRUST_IMG}'" >>${op_release}
+    elif [[ "${PLATFORM}" == "amlogic" ]]; then
         echo "UBOOT_OVERLOAD='${UBOOT_OVERLOAD}'" >>${op_release}
-    elif [[ "${PLATFORM}" == "rockchip" ]]; then
-        echo "TRUST_IMG='${TRUST_IMG}'" >>${op_release}
     fi
     if [[ "${PLATFORM}" == "rockchip" ]]; then
         echo "SHOW_INSTALL_MENU='no'" >>${op_release}
@@ -944,12 +984,13 @@ clean_tmp() {
     cd ${out_path}
 
     # Compress the OpenWrt image file
-    pigz -f *.img && sync
+    pigz -qf *.img || gzip -qf *.img
+    sync
 
     cd ${current_path}
 
     # Clear temporary files directory
-    rm -rf ${tmp_path}
+    rm -rf ${tmp_path} && sync
 }
 
 loop_make() {
@@ -965,15 +1006,14 @@ loop_make() {
             confirm_version
 
             # Determine kernel branch
-            kd="${KERNEL_TAGS}"
             if [[ "${KERNEL_TAGS}" == "rk3588" ]]; then
+                kd="${KERNEL_TAGS}"
                 kernel_list=(${rk3588_kernel[*]})
-            elif [[ "${KERNEL_TAGS}" == "h6" ]]; then
-                kernel_list=(${h6_kernel[*]})
             elif [[ "${KERNEL_TAGS}" =~ ^[0-9]{1,2}\.[0-9]+ ]]; then
+                kd="${kernel_usage}"
                 kernel_list=(${specify_kernel[*]})
-                kd="stable"
             else
+                kd="${kernel_usage}"
                 kernel_list=(${stable_kernel[*]})
             fi
 
@@ -1035,6 +1075,7 @@ echo -e "${INFO} Server running on Ubuntu: [ Release: ${host_release} / Host: ${
 
 # Initialize variables and download the kernel
 init_var "${@}"
+check_data
 # Find OpenWrt file
 find_openwrt
 # Download the dependency files
@@ -1046,6 +1087,7 @@ download_kernel
 
 # Show make settings
 echo -e "${INFO} [ ${#make_openwrt[*]} ] lists of OpenWrt board: [ $(echo ${make_openwrt[*]} | xargs) ]"
+echo -e "${INFO} Kernel Repo: [ ${kernel_repo} ], Kernel Usage: [ ${kernel_usage} ] \n"
 # Show server start information
 echo -e "${INFO} Server space usage before starting to compile: \n$(df -hT ${current_path}) \n"
 
