@@ -167,10 +167,14 @@ on:
         options:
           - save
           - temp
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
 
 env:
   FEEDS_CONF: config-openwrt/${{ inputs.source_branch }}/feeds.conf.default
-  CONFIG_FILE: config-openwrt/${{ inputs.source_branch }}/config
+  CONFIG_FILE: config-openwrt/${{ inputs.source_branch }}/my.config
   DIY_P1_SH: config-openwrt/${{ inputs.source_branch }}/diy-part1.sh
   DIY_P2_SH: config-openwrt/${{ inputs.source_branch }}/diy-part2.sh
   TZ: America/New_York
@@ -236,6 +240,12 @@ jobs:
           echo -e "REPO_URL: [ ${REPO_URL} ]\nREPO_BRANCH: [ ${REPO_BRANCH} ]\nTAGS_NAME: [ ${TAGS_NAME} ]"
           df -hT ${PWD}
           echo "status=success" >> ${GITHUB_OUTPUT}
+      
+      - name: Use build cache
+        uses: klever1988/cachewrtbuild@main
+        with:
+          ccache: 'true'
+          prefix: ${{ github.workspace }}/openwrt
 
       - name: Load custom feeds
         run: |
@@ -266,6 +276,12 @@ jobs:
           make download -j8
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
+      
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+        with:
+          timeout-minutes: 15
 
       - name: Compile the OpenWrt
         id: compile
@@ -329,7 +345,7 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           body: |
             ### OpenWrt Image information
-            - Default IP: 192.168.1.1
+            - Default IP: 192.168.21.1
             - Default username: root
             - Default password: password
             - Default WIFI name: OpenWrt
