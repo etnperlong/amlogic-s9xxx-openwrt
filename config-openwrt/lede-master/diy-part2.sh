@@ -44,6 +44,12 @@ sed -i 's#192.168.1.1#192.168.21.1#g' package/base-files/files/bin/config_genera
 # Add luci-app-amlogic
 svn co https://github.com/ophub/luci-app-amlogic/trunk/luci-app-amlogic package/luci-app-amlogic
 
+# Fix luci-app-argon for LuCI 18.06
+rm -rf package/feeds/kenzok8/luci-theme-argon
+rm -rf package/feeds/kenzok8/luci-app-argon-config
+git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
+git clone -b 18.06 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
+
 # Add Homeproxy - WebUI of Sing-box
 git clone https://github.com/immortalwrt/homeproxy.git package/luci-app-homeproxy
 
