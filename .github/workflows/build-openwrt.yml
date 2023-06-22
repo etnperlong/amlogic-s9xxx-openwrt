@@ -250,6 +250,10 @@ jobs:
         with:
           ccache: 'true'
           prefix: ${{ github.workspace }}/openwrt
+          toolchain: true
+          skip: true
+          mixkey: ${{ inputs.source_branch }}
+          clean: false
 
       - name: Load custom feeds
         run: |
