@@ -249,7 +249,7 @@ jobs:
         uses: klever1988/cachewrtbuild@main
         with:
           ccache: 'true'
-          prefix: ${{ github.workspace }}/openwrt
+          prefix: openwrt
           toolchain: true
           skip: true
           mixkey: ${{ inputs.source_branch }}
