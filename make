@@ -104,6 +104,8 @@ make_board="all"
 # Set OpenWrt firmware size (Unit: MiB, boot_mb >= 256, root_mb >= 512)
 boot_mb="256"
 root_mb="1024"
+# Set OpenWrt builder signature
+builder_name=""
 
 # Get gh_token for api.github.com
 gh_token=""
@@ -169,7 +171,7 @@ init_var() {
     echo -e "${STEPS} Start Initializing Variables..."
 
     # If it is followed by [ : ], it means that the option requires a parameter value
-    get_all_ver="$(getopt "b:r:u:k:a:s:g:" "${@}")"
+    get_all_ver="$(getopt "b:r:u:k:a:s:n:g:" "${@}")"
 
     while [[ -n "${1}" ]]; do
         case "${1}" in
@@ -227,6 +229,14 @@ init_var() {
                 error_msg "Invalid -s parameter [ ${2} ]!"
             fi
             ;;
+        -n | --BuilderName)
+            if [[ -n "${2}" ]]; then
+                builder_name="${2// /}"
+                shift
+            else
+                error_msg "Invalid -n parameter [ ${2} ]!"
+            fi
+            ;;
         -g | --Gh_token)
             if [[ -n "${2}" ]]; then
                 gh_token="${2}"
@@ -246,7 +256,7 @@ init_var() {
 check_data() {
     # Columns of ${model_conf}:
     # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.BOOTLOADER_IMG  8.DESCRIPTION
-    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.BOARD  14.BUILD
+    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.CONTRIBUTORS  14.BOARD  15.BUILD
     [[ -f "${model_conf}" ]] || error_msg "Missing model config file: [ ${model_conf} ]"
 
     # Convert ${model_conf} to ${model_txt} for [ openwrt-install-amlogic ], Just the first 8 columns.
@@ -262,7 +272,7 @@ check_data() {
         make_openwrt=($(
             cat ${model_conf} |
                 sed -e 's/NA//g' -e 's/NULL//g' -e 's/[ ][ ]*//g' |
-                grep -E "^[^#].*:yes$" | awk -F':' '{print $13}' |
+                grep -E "^[^#].*:yes$" | awk -F':' '{print $14}' |
                 sort -u | xargs
         ))
     else
@@ -320,8 +330,19 @@ find_openwrt() {
     # Find custom DISTRIB_SOURCECODE, such as [ official/lede ]
     [[ -f "${temp_dir}/${source_release_file}" ]] && {
         source_codename="$(cat ${temp_dir}/${source_release_file} 2>/dev/null | grep -oE "^DISTRIB_SOURCECODE=.*" | head -n 1 | cut -d"'" -f2)"
-        [[ -n "${source_codename}" && "${source_codename:0:1}" != "_" ]] && source_codename="_${source_codename}"
-        echo -e "${INFO} The source_codename: [ ${source_codename} ]"
+        [[ -n "${source_codename}" ]] && {
+            # Record OpenWrt source codes repository
+            case "${source_codename}" in
+            official) OPENWRT_SOURCECODE="https://github.com/openwrt/openwrt" ;;
+            lede) OPENWRT_SOURCECODE="https://github.com/coolsnowwolf/lede" ;;
+            immortalwrt) OPENWRT_SOURCECODE="https://github.com/immortalwrt/immortalwrt" ;;
+            *) OPENWRT_SOURCECODE="unknown" ;;
+            esac
+
+            # Complete filename
+            [[ "${source_codename:0:1}" != "_" ]] && source_codename="_${source_codename}"
+        }
+        echo -e "${INFO} The source_codename: [ ${source_codename} ], OpenWrt source code repository: [ ${OPENWRT_SOURCECODE} ]"
     }
     # Remove temporary directory
     rm -rf ${temp_dir}
@@ -554,7 +575,7 @@ confirm_version() {
 
     # Columns of ${model_conf}:
     # 1.ID  2.MODEL  3.SOC  4.FDTFILE  5.UBOOT_OVERLOAD  6.MAINLINE_UBOOT  7.BOOTLOADER_IMG  8.DESCRIPTION
-    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.BOARD  14.BUILD
+    # 9.KERNEL_TAGS  10.PLATFORM  11.FAMILY  12.BOOT_CONF  13.CONTRIBUTORS  14.BOARD  15.BUILD
     # Column 5, called <UBOOT_OVERLOAD> in Amlogic, <TRUST_IMG> in Rockchip, Not used in Allwinner.
 
     # Find [ the first ] configuration information with [ the same BOARD name ] and [ BUILD as yes ] in the ${model_conf} file.
@@ -567,6 +588,8 @@ confirm_version() {
     [[ -n "${board_conf}" ]] || error_msg "[ ${board} ] config is missing!"
 
     # Get device settings options
+    MODEL_ID="$(echo ${board_conf} | awk -F':' '{print $1}')"
+    MODEL_NAME="$(echo ${board_conf} | awk -F':' '{print $2}')"
     SOC="$(echo ${board_conf} | awk -F':' '{print $3}')"
     FDTFILE="$(echo ${board_conf} | awk -F':' '{print $4}')"
     UBOOT_OVERLOAD="$(echo ${board_conf} | awk -F':' '{print $5}')"
@@ -577,6 +600,7 @@ confirm_version() {
     PLATFORM="$(echo ${board_conf} | awk -F':' '{print $10}')"
     FAMILY="$(echo ${board_conf} | awk -F':' '{print $11}')"
     BOOT_CONF="$(echo ${board_conf} | awk -F':' '{print $12}')"
+    CONTRIBUTORS="$(echo ${board_conf} | awk -F':' '{print $13}')"
 
     # Check whether the key parameters are correct
     [[ -n "${PLATFORM}" ]] || error_msg "Invalid PLATFORM parameter: [ ${PLATFORM} ]"
@@ -849,6 +873,11 @@ refactor_rootfs() {
     sed -i "s|LABEL=ROOTFS|UUID=${ROOTFS_UUID}|g" etc/fstab
     sed -i "s|option label 'ROOTFS'|option uuid '${ROOTFS_UUID}'|g" etc/config/fstab
 
+    # Set the keyword for tags in Releases
+    [[ -n "${source_codename}" ]] && {
+        sed -i "s|option amlogic_firmware_tag.*|option amlogic_firmware_tag '${source_codename}'|g" etc/config/amlogic
+    }
+
     # Modify the default script to [ bash ] for [ cpustat ]
     [[ -x "bin/bash" ]] && {
         sed -i "s/\/bin\/ash/\/bin\/bash/" etc/passwd
@@ -1004,20 +1033,21 @@ EOF
         echo " Install OpenWrt: System → Amlogic Service → Install OpenWrt" >>etc/banner
         echo " Update  OpenWrt: System → Amlogic Service → Online  Update" >>etc/banner
         echo " Board: ${board} | OpenWrt Kernel: ${kernel_name}" >>etc/banner
-        echo " Production Date: $(date +%Y-%m-%d)" >>etc/banner
+        echo " Builder Name: ${builder_name} | Production Date: $(date +%Y-%m-%d)" >>etc/banner
         echo "───────────────────────────────────────────────────────────────────────" >>etc/banner
     }
 
     # Add firmware information
     echo "PLATFORM='${PLATFORM}'" >>${op_release}
+    echo "MODEL_ID='${MODEL_ID}'" >>${op_release}
+    echo "MODEL_NAME='${MODEL_NAME}'" >>${op_release}
     echo "SOC='${SOC}'" >>${op_release}
     echo "FDTFILE='${FDTFILE}'" >>${op_release}
     echo "FAMILY='${FAMILY}'" >>${op_release}
     echo "BOARD='${board}'" >>${op_release}
-    echo "KERNEL_VERSION='${kernel}'" >>${op_release}
     echo "KERNEL_TAGS='${KERNEL_TAGS}'" >>${op_release}
+    echo "KERNEL_VERSION='${kernel}'" >>${op_release}
     echo "BOOT_CONF='${BOOT_CONF}'" >>${op_release}
-    echo "PACKAGED_DATE='$(date +%Y-%m-%d)'" >>${op_release}
     echo "MAINLINE_UBOOT='/lib/u-boot/${MAINLINE_UBOOT}'" >>${op_release}
     echo "ANDROID_UBOOT='/lib/u-boot/${BOOTLOADER_IMG}'" >>${op_release}
     if [[ "${PLATFORM}" == "rockchip" ]]; then
@@ -1030,6 +1060,10 @@ EOF
     else
         echo "SHOW_INSTALL_MENU='yes'" >>${op_release}
     fi
+    echo "OPENWRT_SOURCECODE='${OPENWRT_SOURCECODE}'" >>${op_release}
+    echo "BUILDER_NAME='${builder_name}'" >>${op_release}
+    echo "CONTRIBUTORS='${CONTRIBUTORS}'" >>${op_release}
+    echo "PACKAGED_DATE='$(date +%Y-%m-%d)'" >>${op_release}
 
     cd ${current_path}
 

@@ -12,11 +12,11 @@ on:
       source_branch:
         description: "Select the source branch"
         required: false
-        default: "lede"
+        default: "official"
         type: choice
         options:
-          - lede
           - official
+          - lede
           - immortalwrt
       openwrt_board:
         description: "Select device board"
@@ -58,8 +58,6 @@ on:
           - s912
           - s912-zyxq-fake
           - s912-h96pro-plus
-          - s912-tx92
-          - s912-z6-plus
           - s912-m8s-pro
           - s912-t95z-plus
           - s912-tx9-pro-3g
@@ -94,7 +92,6 @@ on:
           - s905x3-ip1001m
           - s905x3-q1
           - s905x3-q2
-          - s905x3-q1000
           - s905x3-a100
           - s905x3-2101
           - s905x3-whale
@@ -123,7 +120,6 @@ on:
           - sw799
           - zysj
           - dg3399
-          - mpc1903
           - beikeyun
           - l1pro
           - station-m1
@@ -171,6 +167,14 @@ on:
         options:
           - save
           - temp
+      builder_name:
+        description: "Set OpenWrt builder signature."
+        required: false
+        default: "angel"
+        type: choice
+        options:
+          - angel
+          - yourname
 
 env:
   TZ: America/New_York
@@ -242,6 +246,7 @@ jobs:
           auto_kernel: ${{ inputs.auto_kernel }}
           kernel_repo: ${{ inputs.kernel_repo }}
           kernel_usage: ${{ inputs.kernel_usage }}
+          builder_name: ${{ inputs.builder_name }}
           gh_token: ${{ secrets.GH_TOKEN }}
 
       - name: Upload the packaged OpenWrt
