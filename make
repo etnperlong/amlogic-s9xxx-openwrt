@@ -333,9 +333,9 @@ find_openwrt() {
         [[ -n "${source_codename}" ]] && {
             # Record OpenWrt source codes repository
             case "${source_codename}" in
-            official) OPENWRT_SOURCECODE="https://github.com/openwrt/openwrt" ;;
-            lede) OPENWRT_SOURCECODE="https://github.com/coolsnowwolf/lede" ;;
-            immortalwrt) OPENWRT_SOURCECODE="https://github.com/immortalwrt/immortalwrt" ;;
+            official) OPENWRT_SOURCECODE="github.com/openwrt/openwrt" ;;
+            lede) OPENWRT_SOURCECODE="github.com/coolsnowwolf/lede" ;;
+            immortalwrt) OPENWRT_SOURCECODE="github.com/immortalwrt/immortalwrt" ;;
             *) OPENWRT_SOURCECODE="unknown" ;;
             esac
 
@@ -718,6 +718,7 @@ extract_openwrt() {
     tag_bootfs="${tmp_path}/${kernel}/${board}/bootfs"
     tag_rootfs="${tmp_path}/${kernel}/${board}/rootfs"
     mkdir -p ${tag_bootfs} ${tag_rootfs}
+    chown root:root ${tag_bootfs} ${tag_rootfs}
 
     # Mount bootfs
     if [[ "${bootfs_type}" == "fat32" ]]; then
@@ -738,24 +739,24 @@ extract_openwrt() {
     rm -f ${tag_rootfs}/rom/sbin/firstboot
 
     # Copy the common files
-    [[ -d "${common_files}" ]] && cp -af ${common_files}/* ${tag_rootfs}
+    [[ -d "${common_files}" ]] && cp -af --no-preserve=ownership ${common_files}/* ${tag_rootfs}
 
     # Copy the platform files
     platform_bootfs="${platform_files}/${PLATFORM}/bootfs"
     platform_rootfs="${platform_files}/${PLATFORM}/rootfs"
     [[ -d "${platform_bootfs}" ]] && cp -rf ${platform_bootfs}/* ${tag_bootfs}
-    [[ -d "${platform_rootfs}" ]] && cp -af ${platform_rootfs}/* ${tag_rootfs}
+    [[ -d "${platform_rootfs}" ]] && cp -af --no-preserve=ownership ${platform_rootfs}/* ${tag_rootfs}
 
     # Copy the different files
     different_bootfs="${different_files}/${board}/bootfs"
     different_rootfs="${different_files}/${board}/rootfs"
     [[ -d "${different_bootfs}" ]] && cp -rf ${different_bootfs}/* ${tag_bootfs}
-    [[ -d "${different_rootfs}" ]] && cp -af ${different_rootfs}/* ${tag_rootfs}
+    [[ -d "${different_rootfs}" ]] && cp -af --no-preserve=ownership ${different_rootfs}/* ${tag_rootfs}
 
     # Copy the bootloader files
     [[ -d "${tag_rootfs}/lib/u-boot" ]] || mkdir -p "${tag_rootfs}/lib/u-boot"
     rm -rf ${tag_rootfs}/lib/u-boot/*
-    [[ -d "${bootloader_path}" ]] && cp -af ${bootloader_path}/* ${tag_rootfs}/lib/u-boot
+    [[ -d "${bootloader_path}" ]] && cp -af --no-preserve=ownership ${bootloader_path}/* ${tag_rootfs}/lib/u-boot
 
     # Copy the overload files
     [[ "${PLATFORM}" == "amlogic" ]] && cp -rf ${uboot_path}/${PLATFORM}/overload/* ${tag_bootfs}
