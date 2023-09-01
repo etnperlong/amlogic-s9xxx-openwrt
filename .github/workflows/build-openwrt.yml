@@ -178,7 +178,7 @@ on:
         type: choice
         options:
           - angel
-          - yourname
+          - evans
       ssh:
         description: 'SSH connection to Actions'
         required: false
