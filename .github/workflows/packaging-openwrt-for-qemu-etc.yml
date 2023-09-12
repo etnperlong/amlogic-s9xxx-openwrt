@@ -86,7 +86,7 @@ on:
         type: choice
         options:
           - angel
-          - yourname
+          - evans
 
 env:
   TZ: America/New_York

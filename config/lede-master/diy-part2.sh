@@ -51,7 +51,9 @@ git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luc
 git clone -b 18.06 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
 
 # Add Homeproxy - WebUI of Sing-box
-git clone https://github.com/immortalwrt/homeproxy.git package/luci-app-homeproxy
+# git clone https://github.com/immortalwrt/homeproxy.git package/luci-app-homeproxy
+# Add Support for Asterisk Quectel dongle (IchthysMaranatha Version)
+git clone https://github.com/etnperlong/openwrt-asterisk-chan-quectel.git package/asterisk-chan-quectel
 
 # Fix runc version error
 # rm -rf ./feeds/packages/utils/runc/Makefile
