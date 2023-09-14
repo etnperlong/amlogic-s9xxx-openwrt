@@ -127,10 +127,10 @@ custom_feeds() {
     # EkkoG Feeds
     if [[ $OPENWRT_VERSION =~ "SNAPSHOT" ]]; then
         CUSTOM_FEED=$(cat <<-END
-src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-${OPENWRT_VERSION}
-src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/${OPENWRT_VERSION}
-src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-${OPENWRT_VERSION}
-src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-${OPENWRT_VERSION}
+src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-SNAPSHOT
+src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/SNAPSHOT
+src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-SNAPSHOT
+src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-SNAPSHOT
 src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_luci
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall2
