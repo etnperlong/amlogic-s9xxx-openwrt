@@ -111,6 +111,54 @@ adjust_settings() {
     echo -e "${INFO} [ openwrt ] directory status: $(ls -al 2>/dev/null)"
 }
 
+# Add custom feeds
+custom_feeds() {
+    cd ${imagebuilder_path}
+    echo -e "${STEPS} Start adding custom feeds..."
+
+    # code from: https://github.com/EkkoG/OpenWrt/blob/master/build.sh
+    PACKAGES_ARCH=$(cat .config | grep CONFIG_TARGET_ARCH_PACKAGES | awk -F '=' '{print $2}' | sed 's/"//g')
+    OPENWRT_VERSION=$(cat ./include/version.mk | grep 'VERSION_NUMBER:=$(if' | awk -F ',' '{print $3}' | awk -F ')' '{print $1}')
+    BIG_VERSION=$(echo $OPENWRT_VERSION | awk -F '.' '{print $1"."$2}')
+    echo "${INFO} PACKAGES_ARCH: $PACKAGES_ARCH OPENWRT_VERSION: $OPENWRT_VERSION BIG_VERSION: $BIG_VERSION"
+    DISTRIB_ARCH=$PACKAGES_ARCH
+    DISTRIB_RELEASE=$OPENWRT_VERSION
+
+    # EkkoG Feeds
+    if [[ $OPENWRT_VERSION =~ "SNAPSHOT" ]]; then
+        CUSTOM_FEED=$(cat <<-END
+src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-${OPENWRT_VERSION}
+src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/${OPENWRT_VERSION}
+src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-${OPENWRT_VERSION}
+src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-${OPENWRT_VERSION}
+src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_luci
+src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_packages
+src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall2
+END
+)
+    else
+        CUSTOM_FEED=$(cat <<-END
+src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-${BIG_VERSION}
+src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/${BIG_VERSION}
+src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-${BIG_VERSION}
+src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-${BIG_VERSION}
+src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_luci
+src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_packages
+src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall2
+END
+)
+    fi
+
+    # Create opkg feed directory
+    [[ -d "files/etc/opkg" ]] || mkdir -p files/etc/opkg/
+    echo "$CUSTOM_FEED" >> files/etc/opkg/customfeeds.conf
+    # Add custom feeds to first row
+    echo "$CUSTOM_FEED" | cat - ./repositories.conf > temp && mv temp ./repositories.conf
+    # Add keys of custom feeds
+    cp files/etc/opkg/keys/* keys
+
+}
+
 # Add custom packages
 # If there is a custom package or ipk you would prefer to use create a [ packages ] directory,
 # If one does not exist and place your custom ipk within this directory.
@@ -204,7 +252,17 @@ rebuild_firmware() {
         luci-proto-3g luci-proto-bonding luci-proto-ipip luci-proto-ipv6 luci-proto-ncm  \
         luci-proto-openconnect luci-proto-ppp luci-proto-qmi luci-proto-relay  \
         \
-        luci-app-amlogic luci-i18n-amlogic-zh-cn \
+        autocore automount ca-bundle curl dnsmasq-full dropbear firewall fstools \
+        htop kmod-ipt-nat kmod-ipt-nat6 kmod-lib-zstd kmod-tcp-bbr \
+        luci-app-amlogic luci-i18n-amlogic-zh-cn libc libgcc libustream-mbedtls logd \
+        luci-app-advanced luci-app-autoreboot luci-app-cpufreq luci-app-fan luci-app-firewall \
+        luci-app-opkg luci-app-upnp luci-app-wizard luci-lib-fs mtd nano netifd odhcp6c odhcpd-ipv6only \
+        openssh-sftp-server opkg procd procd-seccomp resolveip swconfig uci uclient-fetch \
+        urandom-seed urngd wget-ssl wpad-basic-mbedtls zram-swap \
+        \
+        luci-app-mosdns luci-i18n-mosdns-zh-cn luci-app-openclash clash-meta-alpha-for-openclash \
+        luci-app-natmap luci-theme-argon \
+        luci-app-passwall2 luci-i18n-passwall2-zh-cn \
         \
         ${config_list} \
         "
@@ -231,6 +289,7 @@ echo -e "${INFO} Server space usage before starting to compile: \n$(df -hT ${mak
 # Perform related operations
 download_imagebuilder
 adjust_settings
+custom_feeds
 custom_packages
 custom_config
 custom_files
