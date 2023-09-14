@@ -252,13 +252,13 @@ rebuild_firmware() {
         luci-proto-3g luci-proto-bonding luci-proto-ipip luci-proto-ipv6 luci-proto-ncm  \
         luci-proto-openconnect luci-proto-ppp luci-proto-qmi luci-proto-relay  \
         \
-        autocore automount ca-bundle curl dnsmasq-full dropbear firewall fstools \
+        autocore automount ca-bundle curl dnsmasq-full dropbear firewall4 fstools \
         htop kmod-ipt-nat kmod-ipt-nat6 kmod-lib-zstd kmod-tcp-bbr \
-        luci-app-amlogic luci-i18n-amlogic-zh-cn libc libgcc libustream-mbedtls logd \
-        luci-app-advanced luci-app-autoreboot luci-app-cpufreq luci-app-fan luci-app-firewall \
-        luci-app-opkg luci-app-upnp luci-app-wizard luci-lib-fs mtd nano netifd odhcp6c odhcpd-ipv6only \
+        luci-app-amlogic luci-i18n-amlogic-zh-cn libc libgcc libustream-openssl logd \
+        luci-app-autoreboot luci-app-cpufreq luci-app-firewall \
+        luci-app-opkg luci-app-upnp luci-lib-fs mtd nano netifd odhcp6c odhcpd-ipv6only \
         openssh-sftp-server opkg procd procd-seccomp resolveip swconfig uci uclient-fetch \
-        urandom-seed urngd wget-ssl wpad-basic-mbedtls zram-swap \
+        urandom-seed urngd wget-ssl zram-swap \
         \
         luci-app-mosdns luci-i18n-mosdns-zh-cn luci-app-openclash clash-meta-alpha-for-openclash \
         luci-app-natmap luci-theme-argon \
@@ -289,10 +289,10 @@ echo -e "${INFO} Server space usage before starting to compile: \n$(df -hT ${mak
 # Perform related operations
 download_imagebuilder
 adjust_settings
-custom_feeds
 custom_packages
 custom_config
 custom_files
+custom_feeds
 rebuild_firmware
 #
 # Show server end information
