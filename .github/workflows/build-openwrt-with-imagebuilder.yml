@@ -15,12 +15,12 @@ on:
       releases_branch:
         description: "Select the releases branch"
         required: false
-        default: "openwrt:22.03.5"
+        default: "immortalwrt:23.05-SNAPSHOT"
         type: choice
         options:
           - immortalwrt:23.05-SNAPSHOT
-          - immortalwrt:23.05.0-rc3
-          - openwrt:23.05.0-rc3
+          - immortalwrt:23.05.0-rc1
+          - openwrt:23.05.0-rc1
           - openwrt:22.03.5
           - openwrt:21.02.7
           - openwrt:19.07.10
@@ -29,7 +29,7 @@ on:
       openwrt_board:
         description: "Select device board"
         required: false
-        default: "all"
+        default: "s905d"
         type: choice
         options:
           - all
@@ -181,14 +181,14 @@ on:
       builder_name:
         description: "Set OpenWrt builder signature."
         required: false
-        default: "angel"
+        default: "evans"
         type: choice
         options:
           - angel
           - evans
 
 env:
-  TZ: America/New_York
+  TZ: Europe/London
   IMAGEBUILDER_SH: config/imagebuilder/imagebuilder.sh
 
 jobs:
@@ -260,10 +260,10 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           body: |
             ### OpenWrt Image information
-            - Default IP: 192.168.1.1
+            - Default IP: 192.168.21.1
             - Default username: root
-            - Default password: password
-            - Default WIFI name: OpenWrt
+            - Default password: mywrtadmin
+            - Default WIFI name: MyWRT
             - Default WIFI password: none
             ### Install to EMMC
             - Login to OpenWrt → System → Amlogic Service → Install OpenWrt

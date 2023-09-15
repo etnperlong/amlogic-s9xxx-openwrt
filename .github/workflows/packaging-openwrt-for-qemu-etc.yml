@@ -89,7 +89,7 @@ on:
           - evans
 
 env:
-  TZ: America/New_York
+  TZ: Europe/London
 
 jobs:
   build:
