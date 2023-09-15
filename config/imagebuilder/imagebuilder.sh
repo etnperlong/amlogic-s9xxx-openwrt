@@ -104,6 +104,11 @@ adjust_settings() {
         error_msg "There is no .config file in the [ ${download_file} ]"
     fi
 
+    # Disable signature checking
+    # https://github.com/kiddin9/openwrt-packages
+    # https://superuser.com/questions/1359705/openwrt-opkg-update-signature-check-failure
+    sed -i -re 's/^(option check_signature.*)/#\1/g' ./repositories.conf
+
     # For other files
     # ......
 
@@ -127,24 +132,32 @@ custom_feeds() {
     # EkkoG Feeds
     if [[ $OPENWRT_VERSION =~ "SNAPSHOT" ]]; then
         CUSTOM_FEED=$(cat <<-END
+# EkkoG
 src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-SNAPSHOT
 src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/SNAPSHOT
 src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-SNAPSHOT
 src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-SNAPSHOT
+# Passwall
 src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_luci
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall2
+# Kiddin9
+src/gz openwrt_kiddin9 https://dl.openwrt.ai/latest/packages/aarch64_generic
 END
 )
     else
         CUSTOM_FEED=$(cat <<-END
+# EkkoG
 src/gz ekkog_packages https://downloads.sourceforge.net/project/ekko-openwrt-dist/packages/${PACKAGES_ARCH}-${BIG_VERSION}
 src/gz ekkog_luci https://downloads.sourceforge.net/project/ekko-openwrt-dist/luci/${BIG_VERSION}
 src/gz ekkog_clash https://downloads.sourceforge.net/project/ekko-openwrt-dist/clash/${PACKAGES_ARCH}-${BIG_VERSION}
 src/gz ekkog_dae https://downloads.sourceforge.net/project/ekko-openwrt-dist/dae/${PACKAGES_ARCH}-${BIG_VERSION}
+# Passwall
 src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_luci
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall2
+# Kiddin9
+src/gz openwrt_kiddin9 https://dl.openwrt.ai/latest/packages/aarch64_generic
 END
 )
     fi
@@ -263,6 +276,14 @@ rebuild_firmware() {
         luci-app-mosdns luci-i18n-mosdns-zh-cn luci-app-openclash clash-meta-alpha-for-openclash \
         luci-app-natmap luci-theme-argon \
         luci-app-passwall2 luci-i18n-passwall2-zh-cn \
+        \
+        luci-app-adguardhome luci-app-arpbind luci-app-cpulimit luci-app-ddns luci-app-diskman \
+        luci-app-filebrowser luci-app-frpc luci-app-hd-idle luci-app-homeassistant luci-app-homebox \
+        luci-app-ksmbd luci-app-mosdns luci-app-nlbwmon luci-app-oaf luci-app-quickstart luci-app-ramfree \
+        luci-app-store luci-app-turboacc luci-app-unblockmusic luci-app-usb-printer \
+        luci-app-ttyd luci-app-uugamebooster luci-app-wireguard luci-app-wolplus luci-app-wrtbwmon \
+        luci-app-zerotier luci-theme-alpha luci-theme-argon luci-app-argon-config btop \
+        luci-app-nginx-manager \
         \
         ${config_list} \
         "

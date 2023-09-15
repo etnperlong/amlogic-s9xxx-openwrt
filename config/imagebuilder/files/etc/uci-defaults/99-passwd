@@ -1,0 +1,2 @@
+encrypt_password=$(openssl passwd -1 'mywrtadmin')
+sed -i -e "s:^root\:[^\:]*\::root\:$encrypt_password\::" /etc/shadow
