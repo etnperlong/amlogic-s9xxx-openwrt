@@ -142,7 +142,7 @@ src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall2
 # Kiddin9
-src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_cortex-a53
+src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_generic
 END
 )
     else
@@ -157,7 +157,7 @@ src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall2
 # Kiddin9
-src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_cortex-a53
+src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_generic
 END
 )
     fi
