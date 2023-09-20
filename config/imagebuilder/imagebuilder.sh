@@ -142,7 +142,7 @@ src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/snapshots/packages/$PACKAGES_ARCH/passwall2
 # Kiddin9
-src/gz openwrt_kiddin9 https://dl.openwrt.ai/latest/packages/aarch64_generic
+src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_cortex-a53
 END
 )
     else
@@ -157,7 +157,7 @@ src/gz passwall_luci https://master.dl.sourceforge.net/project/openwrt-passwall-
 src/gz passwall_packages https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall_packages
 src/gz passwall2 https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-$BIG_VERSION/$PACKAGES_ARCH/passwall2
 # Kiddin9
-src/gz openwrt_kiddin9 https://dl.openwrt.ai/latest/packages/aarch64_generic
+src/gz openwrt_kenzok8 https://op.dllkids.xyz/packages/aarch64_cortex-a53
 END
 )
     fi
@@ -245,7 +245,6 @@ rebuild_firmware() {
     # Selecting default packages, lib, theme, app and i18n, etc.
     # sorting by https://build.moz.one
     my_packages="\
-        -default-settings-chn \
         acpid attr base-files bash bc blkid block-mount blockd bsdtar \
         btrfs-progs busybox bzip2 cgi-io chattr comgt comgt-ncm containerd coremark \
         coreutils coreutils-base64 coreutils-nohup coreutils-truncate curl docker \
@@ -278,7 +277,7 @@ rebuild_firmware() {
         luci-app-natmap luci-theme-argon \
         luci-app-passwall2 luci-i18n-passwall2-zh-cn \
         \
-        luci-app-adguardhome luci-app-arpbind luci-app-cpulimit luci-app-ddns luci-app-diskman \
+        luci-app-adguardhome adguardhome luci-app-arpbind luci-app-cpulimit luci-app-ddns luci-app-diskman \
         luci-app-filebrowser luci-app-frpc luci-app-hd-idle luci-app-homeassistant luci-app-homebox \
         luci-app-ksmbd luci-app-mosdns luci-app-nlbwmon luci-app-oaf luci-app-quickstart luci-app-ramfree \
         luci-app-store luci-app-turboacc luci-app-unblockmusic luci-app-usb-printer \
