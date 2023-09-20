@@ -18,7 +18,8 @@ on:
         default: "immortalwrt:23.05-SNAPSHOT"
         type: choice
         options:
-          - immortalwrt:23.05-SNAPSHOT
+          - immortalwrt:SNAPSHOT
+          - openwrt:SNAPSHOT
           - immortalwrt:23.05.0-rc1
           - openwrt:23.05.0-rc1
           - openwrt:22.03.5
