@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if uci -q get wireless.@wifi-device[0] >/dev/null; then
+    uci -q set wireless.@wifi-device[0].disabled='0'
+fi
+
+if uci -q get wireless.@wifi-iface[0] >/dev/null; then
+    uci -q set wireless.@wifi-iface[0].ssid='MyWRT'
+    uci -q commit wireless
+fi
