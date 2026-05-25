@@ -29,6 +29,7 @@
 # error_msg               : Output error message and abort
 # download_imagebuilder   : Download and extract the OpenWrt Image Builder
 # adjust_settings         : Adjust Image Builder .config settings
+# custom_feeds            : Load custom package feeds
 # custom_packages         : Download and add custom packages
 # custom_config           : Load custom package configuration
 # custom_files            : Add custom overlay files
@@ -43,6 +44,8 @@ openwrt_dir="imagebuilder"
 imagebuilder_path="${make_path}/${openwrt_dir}"
 custom_files_path="${make_path}/config/imagebuilder/files"
 custom_config_file="${make_path}/config/imagebuilder/config"
+custom_opkg_feeds_file="${make_path}/config/imagebuilder/files/etc/opkg/customfeeds.conf"
+custom_apk_feeds_file="${make_path}/config/imagebuilder/files/etc/apk/repositories.d/customfeeds.list"
 output_path="${make_path}/output"
 tmp_path="${imagebuilder_path}/tmp"
 unpack_path="${tmp_path}/unpacked_rootfs"
@@ -108,6 +111,60 @@ adjust_settings() {
 
     sync && sleep 3
     echo -e "${INFO} [ ${imagebuilder_path} ] directory contents: \n$(ls -lh . 2>/dev/null)"
+}
+
+# Add custom feeds
+custom_feeds() {
+    cd ${imagebuilder_path}
+    echo -e "${STEPS} Loading custom package feeds..."
+
+    PACKAGES_ARCH="$(sed -n 's/^CONFIG_TARGET_ARCH_PACKAGES="\(.*\)"$/\1/p' .config | head -n 1)"
+    OPENWRT_VERSION="${op_branch}"
+    BIG_VERSION="$(echo "${op_branch}" | awk -F '.' '{print $1 "." $2}')"
+    DISTRIB_ARCH="${PACKAGES_ARCH}"
+    DISTRIB_RELEASE="${OPENWRT_VERSION}"
+
+    if grep -q "CONFIG_USE_APK=y" .config; then
+        feeds_file="${custom_apk_feeds_file}"
+        keys_src="${custom_files_path}/etc/apk/keys"
+        repos_file="repositories"
+    else
+        feeds_file="${custom_opkg_feeds_file}"
+        keys_src="${custom_files_path}/etc/opkg/keys"
+        repos_file="repositories.conf"
+    fi
+
+    if [[ ! -f "${repos_file}" ]]; then
+        echo -e "${WARNING} [ ${repos_file} ] not found, skipped custom feeds."
+        return 0
+    fi
+
+    if [[ ! -s "${feeds_file}" ]]; then
+        echo -e "${INFO} No custom feed configuration file found, skipped."
+        return 0
+    fi
+
+    expanded_feeds=""
+    while IFS= read -r raw_feed || [[ -n "${raw_feed}" ]]; do
+        [[ "${raw_feed}" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${raw_feed//[[:space:]]/}" ]] && continue
+        feed_line="$(eval "printf '%s\\n' \"${raw_feed}\"")"
+        expanded_feeds+="${feed_line}"$'\n'
+    done < "${feeds_file}"
+
+    if [[ -z "${expanded_feeds}" ]]; then
+        echo -e "${INFO} No active custom feed entries were found, skipped."
+        return 0
+    fi
+
+    printf '%s' "${expanded_feeds}" | cat - "${repos_file}" > "${repos_file}.tmp" && mv -f "${repos_file}.tmp" "${repos_file}"
+
+    [[ -d "keys" ]] || mkdir -p keys
+    if [[ -d "${keys_src}" ]]; then
+        cp -f "${keys_src}"/* keys/ 2>/dev/null || true
+    fi
+
+    echo -e "${INFO} Custom feed entries: \n$(printf '%s' "${expanded_feeds}")"
 }
 
 # Add custom packages
@@ -305,6 +362,7 @@ adjust_settings
 custom_packages
 custom_config
 custom_files
+custom_feeds
 rebuild_firmware
 custom_settings
 #

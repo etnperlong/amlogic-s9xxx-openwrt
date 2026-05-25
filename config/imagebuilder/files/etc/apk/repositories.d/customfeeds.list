@@ -1,0 +1,16 @@
+# Add one feed URL per line (APK format, bare URL ending with /packages.adb).
+# Entries are prepended to the downloaded ImageBuilder repositories file before `make image`.
+#
+# Available variables:
+#   ${PACKAGES_ARCH}
+#   ${OPENWRT_VERSION}
+#   ${BIG_VERSION}
+#   ${DISTRIB_ARCH}
+#   ${DISTRIB_RELEASE}
+#
+# Review third-party feed availability and signatures before enabling any entries.
+#
+# Example placeholders to review manually before use:
+# https://example.com/releases/packages-${BIG_VERSION}/${PACKAGES_ARCH}/passwall_packages/packages.adb
+# https://example.com/releases/packages-${BIG_VERSION}/${PACKAGES_ARCH}/passwall_luci/packages.adb
+# https://example.com/packages/${PACKAGES_ARCH}/openwrt_kenzok8/packages.adb
