@@ -14,3 +14,4 @@
 # https://example.com/releases/packages-${BIG_VERSION}/${PACKAGES_ARCH}/passwall_packages/packages.adb
 # https://example.com/releases/packages-${BIG_VERSION}/${PACKAGES_ARCH}/passwall_luci/packages.adb
 # https://example.com/packages/${PACKAGES_ARCH}/openwrt_kenzok8/packages.adb
+https://mywrt.awayfrom.cn/packages-${BIG_VERSION}/${PACKAGES_ARCH}/mywrt/packages.adb
