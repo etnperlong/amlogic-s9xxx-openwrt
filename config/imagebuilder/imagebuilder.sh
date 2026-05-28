@@ -34,6 +34,7 @@
 # custom_config           : Load custom package configuration
 # custom_files            : Add custom overlay files
 # rebuild_firmware        : Build firmware using Image Builder
+# remove_native_luci_flash: Remove OpenWrt native LuCI flash page
 # custom_settings         : Apply post-build customizations
 #
 #================================ Set make environment variables ================================
@@ -301,6 +302,66 @@ rebuild_firmware() {
     echo -e "${INFO} Firmware build completed successfully."
 }
 
+# Remove OpenWrt's native Backup / Flash Firmware page from LuCI.
+remove_luci_json_object() {
+    local file="${1}"
+    local key="${2}"
+    local backup_file
+
+    [[ -f "${file}" ]] || return 1
+    backup_file="$(mktemp)"
+    cp -p "${file}" "${backup_file}"
+
+    REMOVE_JSON_KEY="${key}" perl -0pi -e '
+        my $key = quotemeta($ENV{"REMOVE_JSON_KEY"});
+        s/\n([ \t]*)"$key"\s*:\s*\{.*?\n\1\},\n/\n/s or
+        s/,\n([ \t]*)"$key"\s*:\s*\{.*?\n\1\}//s;
+    ' "${file}"
+
+    if cmp -s "${backup_file}" "${file}"; then
+        rm -f "${backup_file}"
+        return 1
+    fi
+
+    rm -f "${backup_file}"
+    return 0
+}
+
+remove_native_luci_flash() {
+    local rootfs="${1}"
+    local menu_file="${rootfs}/usr/share/luci/menu.d/luci-mod-system.json"
+    local acl_file="${rootfs}/usr/share/rpcd/acl.d/luci-mod-system.json"
+    local flash_view="${rootfs}/www/luci-static/resources/view/system/flash.js"
+    local legacy_controller="${rootfs}/usr/lib/lua/luci/controller/admin/system.lua"
+    local removed="false"
+
+    if remove_luci_json_object "${menu_file}" "admin/system/flash"; then
+        echo -e "${INFO} Removed native LuCI flash menu entry."
+        removed="true"
+    fi
+
+    if remove_luci_json_object "${acl_file}" "luci-mod-system-flash"; then
+        echo -e "${INFO} Removed native LuCI flash RPC ACL."
+        removed="true"
+    fi
+
+    if [[ -f "${flash_view}" ]]; then
+        rm -f "${flash_view}"
+        echo -e "${INFO} Removed native LuCI flash view."
+        removed="true"
+    fi
+
+    if [[ -f "${legacy_controller}" ]] && grep -q "flashops" "${legacy_controller}"; then
+        sed -i '/flashops/d' "${legacy_controller}"
+        echo -e "${INFO} Removed legacy LuCI flashops routes."
+        removed="true"
+    fi
+
+    if [[ "${removed}" == "false" ]]; then
+        echo -e "${WARNING} Native LuCI flash page files were not found."
+    fi
+}
+
 # Custom settings after rebuild
 custom_settings() {
     cd ${imagebuilder_path}
@@ -340,6 +401,8 @@ custom_settings() {
         else
             error_msg "${release_file} not found."
         fi
+
+        remove_native_luci_flash "${unpack_path}"
 
         # Repack the modified root filesystem
         echo -e "${INFO} Repacking into ${original_filename}..."
