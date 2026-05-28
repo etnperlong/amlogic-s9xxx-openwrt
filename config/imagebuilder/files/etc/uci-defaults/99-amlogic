@@ -1,0 +1,6 @@
+#!/bin/sh
+
+uci -q set amlogic.config.amlogic_firmware_repo='https://github.com/etnperlong/amlogic-s9xxx-openwrt'
+uci -q commit amlogic
+
+exit 0
