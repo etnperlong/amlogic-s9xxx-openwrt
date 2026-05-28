@@ -134,6 +134,20 @@ custom_feeds() {
         repos_file="repositories.conf"
     fi
 
+    # custom_files copies these templates into the rootfs overlay before this step.
+    # Expand the copied files too, otherwise devices receive literal placeholders.
+    for overlay_feeds_file in "files/etc/opkg/customfeeds.conf" "files/etc/apk/repositories.d/customfeeds.list"; do
+        [[ -f "${overlay_feeds_file}" ]] || continue
+        sed -i \
+            -e "s|\${PACKAGES_ARCH}|${PACKAGES_ARCH}|g" \
+            -e "s|\${OPENWRT_VERSION}|${OPENWRT_VERSION}|g" \
+            -e "s|\${BIG_VERSION}|${BIG_VERSION}|g" \
+            -e "s|\${DISTRIB_ARCH}|${DISTRIB_ARCH}|g" \
+            -e "s|\${DISTRIB_RELEASE}|${DISTRIB_RELEASE}|g" \
+            "${overlay_feeds_file}"
+        echo -e "${INFO} Expanded custom feed variables in [ ${overlay_feeds_file} ]."
+    done
+
     if [[ ! -f "${repos_file}" ]]; then
         echo -e "${WARNING} [ ${repos_file} ] not found, skipped custom feeds."
         return 0
