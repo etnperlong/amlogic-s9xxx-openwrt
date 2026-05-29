@@ -15,7 +15,7 @@ esac
 mediaurlbase="$(uci -q get luci.main.mediaurlbase)"
 case "${mediaurlbase}" in
     ""|/luci-static/bootstrap)
-        uci -q set luci.main.mediaurlbase='/luci-static/argon' && changed=1
+        uci -q set luci.main.mediaurlbase='/luci-static/aurora' && changed=1
         ;;
 esac
 
