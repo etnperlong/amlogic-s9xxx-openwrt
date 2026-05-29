@@ -1,13 +1,28 @@
 #!/bin/sh
 
-uci -q set argon.@global[0].mode='normal'
-uci -q set argon.@global[0].primary='#5e72e4'
-uci -q set argon.@global[0].dark_primary='#483d8b'
-uci -q set argon.@global[0].transparency='0.5'
-uci -q set argon.@global[0].transparency_dark='0.5'
-uci -q set argon.@global[0].blur='10'
-uci -q set argon.@global[0].blur_dark='10'
-uci -q set argon.@global[0].online_wallpaper='none'
-uci -q commit argon
+# These defaults are packaged into every image, so they can run after sysupgrade too.
+[ -f /etc/backup/installed_packages.txt ] && exit 0
+
+changed=0
+
+set_if_missing() {
+    local option="${1}"
+    local value="${2}"
+
+    if ! uci -q get "argon.@global[0].${option}" >/dev/null; then
+        uci -q set "argon.@global[0].${option}=${value}" && changed=1
+    fi
+}
+
+set_if_missing mode 'normal'
+set_if_missing primary '#5e72e4'
+set_if_missing dark_primary '#483d8b'
+set_if_missing transparency '0.5'
+set_if_missing transparency_dark '0.5'
+set_if_missing blur '10'
+set_if_missing blur_dark '10'
+set_if_missing online_wallpaper 'none'
+
+[ "${changed}" = "1" ] && uci -q commit argon
 
 exit 0

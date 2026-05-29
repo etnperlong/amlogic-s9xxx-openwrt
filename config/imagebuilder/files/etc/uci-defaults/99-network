@@ -1,10 +1,21 @@
 #!/bin/sh
 
-if uci -q get wireless.@wifi-device[0] >/dev/null; then
-    uci -q set wireless.@wifi-device[0].disabled='0'
-fi
+# These defaults are packaged into every image, so they can run after sysupgrade too.
+[ -f /etc/backup/installed_packages.txt ] && exit 0
 
 if uci -q get wireless.@wifi-iface[0] >/dev/null; then
-    uci -q set wireless.@wifi-iface[0].ssid='MyWRT'
-    uci -q commit wireless
+    ssid="$(uci -q get wireless.@wifi-iface[0].ssid)"
+
+    case "${ssid}" in
+        ""|OpenWrt)
+            if uci -q get wireless.@wifi-device[0] >/dev/null; then
+                uci -q set wireless.@wifi-device[0].disabled='0'
+            fi
+
+            uci -q set wireless.@wifi-iface[0].ssid='MyWRT'
+            uci -q commit wireless
+            ;;
+    esac
 fi
+
+exit 0
