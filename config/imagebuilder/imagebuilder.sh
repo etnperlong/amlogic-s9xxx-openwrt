@@ -280,7 +280,7 @@ rebuild_firmware() {
         jshn kmod-brcmfmac kmod-brcmutil kmod-cfg80211 kmod-mac80211 libjson-script liblucihttp \
         liblucihttp-lua losetup lsattr lsblk lscpu mkf2fs mount-utils openssh-sftp-server openssl-util \
         parted perl-http-date perlbase-file perlbase-getopt perlbase-time perlbase-unicode \
-        perlbase-utf8 pigz ppp ppp-mod-pppoe pv rename resize2fs runc tar tini ttyd tune2fs \
+        perlbase-utf8 pigz ppp ppp-mod-pppoe pv rename resize2fs runc tailscale tar tini ttyd tune2fs \
         uclient-fetch uhttpd uhttpd-mod-ubus unzip uqmi usb-modeswitch uuidgen wget-ssl whereis \
         which wpad-basic wwan xfs-fsck xfs-mkfs xz xz-utils ziptool zoneinfo-asia zoneinfo-core zstd \
         \
@@ -288,6 +288,8 @@ rebuild_firmware() {
         luci-lib-ip luci-lib-ipkg luci-lib-jsonc luci-lib-nixio luci-mod-admin-full luci-mod-network \
         luci-mod-status luci-proto-3g luci-proto-ipip luci-proto-ipv6 \
         luci-proto-ncm luci-proto-openconnect luci-proto-ppp luci-proto-qmi luci-proto-relay \
+        \
+        luci-mod-dashboard luci-i18n-dashboard-zh-cn \
         \
         luci-app-amlogic luci-i18n-amlogic-zh-cn \
         \
