@@ -1,0 +1,8 @@
+#!/bin/sh
+
+if [ -x /etc/init.d/asterisk-ttyusb-permissions ]; then
+    /etc/init.d/asterisk-ttyusb-permissions enable
+    /etc/init.d/asterisk-ttyusb-permissions start
+fi
+
+exit 0

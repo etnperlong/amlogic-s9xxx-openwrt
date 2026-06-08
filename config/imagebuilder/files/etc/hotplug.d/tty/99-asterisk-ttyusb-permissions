@@ -1,0 +1,17 @@
+[ "${ACTION}" = "add" ] || [ "${ACTION}" = "bind" ] || exit 0
+[ -n "${DEVNAME}" ] || exit 0
+
+case "${DEVNAME}" in
+    /dev/*)
+        device="${DEVNAME}"
+        ;;
+    *)
+        device="/dev/${DEVNAME}"
+        ;;
+esac
+
+case "$(basename "${device}")" in
+    ttyUSB*)
+        /usr/sbin/asterisk-ttyusb-permissions "${device}"
+        ;;
+esac

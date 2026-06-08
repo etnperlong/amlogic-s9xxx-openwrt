@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+
+START=19
+
+start() {
+    /usr/sbin/asterisk-ttyusb-permissions
+}
+
+boot() {
+    start
+}

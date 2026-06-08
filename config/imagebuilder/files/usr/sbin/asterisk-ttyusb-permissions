@@ -1,0 +1,28 @@
+#!/bin/sh
+
+fix_ttyusb_permissions() {
+    [ -e "${1}" ] || return 0
+
+    case "$(basename "${1}")" in
+        ttyUSB*)
+            chown asterisk:dialout "${1}" 2>/dev/null || return 0
+            chmod 0660 "${1}" 2>/dev/null || true
+            ;;
+    esac
+}
+
+id -u asterisk >/dev/null 2>&1 || exit 0
+grep -q '^dialout:' /etc/group 2>/dev/null || exit 0
+
+if [ "${#}" -gt 0 ]; then
+    for device in "${@}"; do
+        fix_ttyusb_permissions "${device}"
+    done
+else
+    for device in /dev/ttyUSB*; do
+        [ -e "${device}" ] || continue
+        fix_ttyusb_permissions "${device}"
+    done
+fi
+
+exit 0
