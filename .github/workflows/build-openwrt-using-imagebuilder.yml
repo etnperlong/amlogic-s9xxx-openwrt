@@ -28,7 +28,7 @@ on:
       openwrt_board:
         description: "Select device board"
         required: false
-        default: "s905d"
+        default: "s905d_rk3318-box"
         type: choice
         options:
           - all
@@ -44,6 +44,7 @@ on:
           - last50
           - a311d-oes_s922x-oes-plus_wxy-oect
           - nsy-g16-plus_nsy-g68-plus_bdy-g18-pro
+          - s905d_rk3318-box
           - s905d_s905x3_s912_s922x-ct2000
           - a311d
           - a311d-oes
